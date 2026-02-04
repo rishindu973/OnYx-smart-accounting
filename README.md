@@ -1,106 +1,90 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
-
-## Getting Started
-
-First, run the development server:
-
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-
 OnYx: Smart Accounting & Governance
-Project Status: Initial Database & Infrastructure Complete (Phase 1)
+Project Status: Frontend Integration & Infrastructure Complete (Phase 2)
 
-This repository contains the core infrastructure for OnYx, an AI-driven financial governance tool. The database is powered by PostgreSQL and Prisma ORM, featuring a company-centric multi-tenant architecture.
+This repository contains the full-stack core for OnYx, an AI-driven financial governance tool. It integrates a high-fidelity Next.js 14 frontend (Tailwind CSS, Framer Motion, Recharts) with a robust PostgreSQL backend powered by Prisma ORM.
 
-📂 Project Structure Overview
-prisma/schema.prisma: The single source of truth for our database design.
+--Project Structure Overview--
 
-src/generated/prisma/: Auto-generated TypeSafe client for interacting with the database.
+src/
+├── app/               # Next.js App Router (File-based Routing)
+│   ├── api/           # External Webhooks & API endpoints
+│   ├── (auth)/        # Authentication routes
+│   └── dashboard/     # Core application feature pages
+├── components/        # Reusable UI & Layout components
+│   ├── ui/            # Shadcn Primitives (Buttons, Dialogs, etc.)
+│   └── dashboard/     # Feature-specific dashboard widgets
+├── contexts/          # Global State (AuthContext, ThemeContext)
+├── hooks/             # Custom React Hooks (useToast, useMobile)
+├── lib/
+│   ├── actions/       # Server Actions (Your Backend Logic)
+│   ├── engines/       # Financial computation & rule engines
+│   └── db.ts          # Prisma Singleton Client
+├── services/          # AI Logic, Suggestion Engines, Fuzzy Matching
+└── types/             # Shared TypeScript Interfaces
 
-src/services/: (Reserved) AI Logic, Vendor Mapping, and Suggestion Engine.
 
-src/app/api/: (Reserved) Next.js API routes for backend operations.
+Post-Pull & Update Instructions
+If you are pulling changes from the dev branch, follow these steps to ensure your local environment is synchronized:
 
-🛠️ Local Setup Instructions
-Follow these steps to synchronize your local environment with the project schema.
-
-1. Prerequisites
-Ensure PostgreSQL is installed and running on your machine.
-
-Ensure you have Node.js installed.
-
-2. Environment Configuration
-Create a .env file in the root directory and add your local database connection string:
-
-Bash
-DATABASE_URL="postgresql://postgres:YOUR_PASSWORD@localhost:5432/onyx-db?schema=public"
-Note: Replace YOUR_PASSWORD with your actual local PostgreSQL password.
-
-3. Installation & Database Sync
-Run the following commands in your terminal:
+Install Dependencies We have added several UI libraries (Radix UI, Recharts, Framer Motion). You must update your node_modules.
 
 Bash
-# Install dependencies
 npm install
-
-# Create the tables in your local Postgres
-npx prisma migrate dev --name init_onyx
-
-# Generate the Prisma Client for TypeScript support
-npx prisma generate
-4. Verification
-Launch Prisma Studio to verify your local database tables:
+Regenerate Prisma Client Ensure your VS Code provides full TypeSafe auto-completion for our models.
 
 Bash
-npx prisma studio
-You should see all core tables: User, Company, ChartOfAccounts, JournalEntry, LedgerLine, DailyLimit, and VendorMapping.
+npx prisma generate
+Client Component Awareness Most frontend pages use hooks (e.g., useState). Ensure any new UI-heavy pages start with the "use client"; directive at the top.
+Backend Logic Architecture (Where to Code)
+To keep the project clean, please place your code according to these designated areas:
 
-🧠 Database Logic (For Team Members)
-Member 1 (UI/UX): Use the JournalEntry and LedgerLine models to populate the Dashboard and Virtual Ledger.
+Layer	            Location	        Purpose
+User Actions	    src/lib/actions/	Logic triggered by buttons (e.g., reconcile(), saveScan()).
+AI/Complex Logic	src/services/ 	    Heavy lifting like fuzzy matching or suggestion engines.
+Computation	        src/lib/engines/	Financial rule engines (e.g., tax or audit validators).
+External APIs	    src/app/api/	    Only for webhooks or external pings.
 
-Member 3 (Backend): The sourceType field on JournalEntry tracks whether data came from AI_SCAN or USER_INPUT.
+--Important Feature Guidelines--
+Server Actions: Do not use standard API routes for internal logic. Use src/lib/actions/ to perform DB operations directly from the UI.
 
-Member 5 (The Brain): Use the VendorMapping table to create the auto-suggestion logic for new documents.
+Audit Trail (No-Delete Policy): Never use db.table.delete(). Use the reversalOfId field in the JournalEntry model to void or reverse transactions for a permanent audit trail.
 
-Governance: The reversalOfId in JournalEntry creates an immutable audit trail—never delete records; always reverse them.
+Client Directives: If your page/component uses useState or useEffect, you must add "use client"; at the very top.
 
-🚀 GitHub Push Instructions
-Once you've saved this README, run these commands to share the directory with your team:
+Local Setup (First Time)
+Prerequisites: Install PostgreSQL and Node.js.
 
-Initialize Git (if not already done): git init
+Environment: Create a .env file in the root.
 
-Add all files: git add . (Ensure .env is in your .gitignore!)
+Plaintext
+DATABASE_URL="postgresql://postgres:YOUR_PASSWORD@localhost:5432/onyx-db?schema=public"
+Database Sync:
 
-Commit: git commit -m "feat: Initial database infrastructure and Prisma schema"
+Bash
+npx prisma migrate dev --name init_onyx
+Verification: Run npx prisma studio to view your tables.
 
-Add Remote: git remote add origin <YOUR_REPO_URL>
+Supabase to Prisma Transition
+Notice: We are strictly using Prisma + PostgreSQL. The frontend migrated from Lovable contains legacy Supabase imports (@supabase/supabase-js). Member 5 is currently stripping these out. If you encounter a Supabase-related error:
 
-Push: git push -u origin main
+Do not install Supabase.
+
+If you see a supabase import error, ignore it or replace it with a placeholder for a Server Action.
+
+Audit Trail: Remember, we never delete records. Use the reversalOfId in JournalEntry to void transactions.
+
+
+--Team Roles & Logic Handover--
+Member 1 (UI/UX): All visual components are in src/components/ui. Use page.tsx in src/app/ folders for routing.
+
+Member 2,3 (Backend): Implement logic in src/lib/actions/. Distinguish between AI_SCAN and USER_INPUT in sourceType.
+
+Member 4,5 (AI Logic): Use VendorMapping for suggestion logic and implement the fuzzy match engine in src/services/.
+
+--Development Commands--
+npm run dev: Start the development server.
+
+npx prisma studio: Open the visual database editor to inspect local data.
+
+npx prisma generate: Run this every time you pull changes to the schema.prisma file.
+

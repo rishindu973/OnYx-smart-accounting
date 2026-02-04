@@ -5,12 +5,14 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider = "prisma-client-js"
+  // output   = "../src/generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
+  // url      = "postgresql://postgres:password123@localhost:5432/onyx-db?schema=public"
 }
 //identity strategy: "uuid" is used for generating unique identifiers
 //1-1 relationship between User and Company
