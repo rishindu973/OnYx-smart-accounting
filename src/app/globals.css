@@ -30,6 +30,12 @@
     --navy-medium: 222 47% 7%;
     --electric-blue: 210 100% 66%;
     --electric-blue-glow: 210 100% 66% / 0.15;
+    --success: 142.1 70.6% 45.3%;
+    --success-foreground: 144.9 80.4% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 48 96% 4%;
   }
 }
 
