@@ -1,9 +1,9 @@
 "use client";
 import { useState } from "react";
-import { 
-  FileText, 
-  ExternalLink, 
-  RotateCcw, 
+import {
+  FileText,
+  ExternalLink,
+  RotateCcw,
   Eye,
   X,
   ChevronDown,
@@ -26,92 +26,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-interface LedgerEntry {
-  id: string;
-  date: string;
-  description: string;
-  account: string;
-  accountCode: string;
-  debit: number | null;
-  credit: number | null;
-  source: "AI_SCAN" | "USER_INPUT";
-  documentUrl: string;
-  reversalOfId?: string;
-  isReversed?: boolean;
+interface VirtualLedgerProps {
+  initialData: LedgerEntry[];
 }
 
-const mockLedgerData: LedgerEntry[] = [
-  {
-    id: "JE-001",
-    date: "2024-01-15",
-    description: "Invoice #4521 - ABC Corp",
-    account: "Accounts Receivable",
-    accountCode: "1200",
-    debit: 2450.00,
-    credit: null,
-    source: "AI_SCAN",
-    documentUrl: "/docs/invoice-4521.pdf",
-  },
-  {
-    id: "JE-002",
-    date: "2024-01-15",
-    description: "Invoice #4521 - Revenue Recognition",
-    account: "Sales Revenue",
-    accountCode: "4000",
-    debit: null,
-    credit: 2450.00,
-    source: "AI_SCAN",
-    documentUrl: "/docs/invoice-4521.pdf",
-  },
-  {
-    id: "JE-003",
-    date: "2024-01-14",
-    description: "Cheque #890 - Vendor Payment",
-    account: "Accounts Payable",
-    accountCode: "2100",
-    debit: 1200.00,
-    credit: null,
-    source: "USER_INPUT",
-    documentUrl: "/docs/cheque-890.pdf",
-    isReversed: true,
-  },
-  {
-    id: "JE-003-R",
-    date: "2024-01-15",
-    description: "REVERSAL: Cheque #890 - Vendor Payment",
-    account: "Accounts Payable",
-    accountCode: "2100",
-    debit: null,
-    credit: 1200.00,
-    source: "USER_INPUT",
-    documentUrl: "/docs/cheque-890.pdf",
-    reversalOfId: "JE-003",
-  },
-  {
-    id: "JE-004",
-    date: "2024-01-14",
-    description: "Office Supplies - Staples",
-    account: "Office Expenses",
-    accountCode: "6200",
-    debit: 340.00,
-    credit: null,
-    source: "AI_SCAN",
-    documentUrl: "/docs/receipt-staples.pdf",
-  },
-  {
-    id: "JE-005",
-    date: "2024-01-13",
-    description: "Client Deposit - Omega Inc",
-    account: "Cash",
-    accountCode: "1000",
-    debit: 5000.00,
-    credit: null,
-    source: "USER_INPUT",
-    documentUrl: "/docs/deposit-omega.pdf",
-  },
-];
+import { LedgerEntry } from "@/types/ledger";
 
-const VirtualLedger = () => {
+const VirtualLedger = ({ initialData }: VirtualLedgerProps) => {
   const [selectedDocument, setSelectedDocument] = useState<string | null>(null);
   const [voidingEntry, setVoidingEntry] = useState<string | null>(null);
 
@@ -179,79 +100,87 @@ const VirtualLedger = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {mockLedgerData.map((entry) => (
-              <TableRow 
-                key={entry.id} 
-                className={`${getRowClasses(entry)} hover:bg-muted/30 transition-colors`}
-              >
-                <TableCell className="font-mono text-sm">
-                  {entry.date}
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    {(entry.reversalOfId || entry.isReversed) && (
-                      <RotateCcw className="w-4 h-4 text-muted-foreground shrink-0" />
-                    )}
-                    <span className={entry.reversalOfId ? "italic" : ""}>
-                      {entry.description}
-                    </span>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div>
-                    <span className="font-medium">{entry.account}</span>
-                    <span className="text-muted-foreground ml-2 text-xs">
-                      ({entry.accountCode})
-                    </span>
-                  </div>
-                </TableCell>
-                <TableCell className="text-right font-mono">
-                  {entry.debit && (
-                    <span className="text-foreground">{formatCurrency(entry.debit)}</span>
-                  )}
-                  {!entry.debit && <span className="text-muted-foreground">—</span>}
-                </TableCell>
-                <TableCell className="text-right font-mono">
-                  {entry.credit && (
-                    <span className="text-foreground">{formatCurrency(entry.credit)}</span>
-                  )}
-                  {!entry.credit && <span className="text-muted-foreground">—</span>}
-                </TableCell>
-                <TableCell>
-                  <Badge variant={entry.source === 'AI_SCAN' ? 'ai' : 'manual'}>
-                    {entry.source}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-center">
-                  <Button 
-                    variant="ghost" 
-                    size="icon"
-                    onClick={() => setSelectedDocument(entry.documentUrl)}
-                    className="h-8 w-8"
-                  >
-                    <Eye className="w-4 h-4 text-primary" />
-                  </Button>
-                </TableCell>
-                <TableCell className="text-center">
-                  {!entry.reversalOfId && !entry.isReversed && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-1 h-7 text-xs"
-                      onClick={() => setVoidingEntry(entry.id)}
-                    >
-                      <RotateCcw className="w-3 h-3" />
-                      Void/Reverse
-                    </Button>
-                  )}
-                  {(entry.reversalOfId || entry.isReversed) && (
-                    <span className="text-xs text-muted-foreground italic">
-                      {entry.isReversed ? "Reversed" : "Reversal Entry"}
-                    </span>
-                  )}
+            {initialData.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  No ledger entries found
                 </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              initialData.map((entry) => (
+                <TableRow
+                  key={entry.id}
+                  className={`${getRowClasses(entry)} hover:bg-muted/30 transition-colors`}
+                >
+                  <TableCell className="font-mono text-sm">
+                    {entry.date}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      {(entry.reversalOfId || entry.isReversed) && (
+                        <RotateCcw className="w-4 h-4 text-muted-foreground shrink-0" />
+                      )}
+                      <span className={entry.reversalOfId ? "italic" : ""}>
+                        {entry.description}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div>
+                      <span className="font-medium">{entry.account}</span>
+                      <span className="text-muted-foreground ml-2 text-xs">
+                        ({entry.accountCode})
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right font-mono">
+                    {entry.debit && (
+                      <span className="text-foreground">{formatCurrency(entry.debit)}</span>
+                    )}
+                    {!entry.debit && <span className="text-muted-foreground">—</span>}
+                  </TableCell>
+                  <TableCell className="text-right font-mono">
+                    {entry.credit && (
+                      <span className="text-foreground">{formatCurrency(entry.credit)}</span>
+                    )}
+                    {!entry.credit && <span className="text-muted-foreground">—</span>}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={entry.source === 'AI_SCAN' ? 'ai' : 'manual'}>
+                      {entry.source}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setSelectedDocument(entry.documentUrl)}
+                      className="h-8 w-8"
+                    >
+                      <Eye className="w-4 h-4 text-primary" />
+                    </Button>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {!entry.reversalOfId && !entry.isReversed && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1 h-7 text-xs"
+                        onClick={() => setVoidingEntry(entry.id)}
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        Void/Reverse
+                      </Button>
+                    )}
+                    {(entry.reversalOfId || entry.isReversed) && (
+                      <span className="text-xs text-muted-foreground italic">
+                        {entry.isReversed ? "Reversed" : "Reversal Entry"}
+                      </span>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </div>
@@ -310,7 +239,7 @@ const VirtualLedger = () => {
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-muted-foreground">
-              You are about to create a reversing entry for <strong>{voidingEntry}</strong>. 
+              You are about to create a reversing entry for <strong>{voidingEntry}</strong>.
               This action cannot be undone and will create a permanent audit trail.
             </p>
             <div className="p-4 rounded-lg bg-warning/10 border border-warning/20">
