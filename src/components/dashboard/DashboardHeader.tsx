@@ -1,3 +1,4 @@
+"use client";
 import { format } from "date-fns";
 import { Bell, Search, Settings, Building, Sun, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";

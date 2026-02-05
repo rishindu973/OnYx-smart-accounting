@@ -1,4 +1,4 @@
-
+"use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { 
@@ -31,10 +31,10 @@ import { toast } from "sonner";
 
 const mainNavItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Transactions", url: "/dashboard/transactions", icon: FileText },
-  { title: "Bank Reconciliation", url: "/dashboard/reconciliation", icon: Building2 },
-  { title: "Governance", url: "/dashboard/governance", icon: Calendar },
-  { title: "Virtual Ledger", url: "/dashboard/ledger", icon: BookOpen },
+  { title: "Transactions", url: "/transactions", icon: FileText }, // Removed /dashboard/
+  { title: "Bank Reconciliation", url: "/bank-reconciliation", icon: Building2 }, // Removed /dashboard/
+  { title: "Governance", url: "/governance", icon: Calendar }, // Removed /dashboard/
+  { title: "Virtual Ledger", url: "/ledger", icon: BookOpen }, // Removed /dashboard/
 ];
 
 const DashboardSidebar = () => {
@@ -110,9 +110,9 @@ const DashboardSidebar = () => {
       <SidebarMenuItem>
         <SidebarMenuButton asChild tooltip="Scan Document">
           <Link 
-            href="/dashboard/scan"
+            href="/scan"
             className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors w-full ${
-              pathname === "/dashboard/scan" 
+              pathname === "/scan" 
                 ? "bg-sidebar-accent text-foreground" 
                 : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent"
             }`}
@@ -127,9 +127,9 @@ const DashboardSidebar = () => {
       <SidebarMenuItem>
         <SidebarMenuButton asChild tooltip="Upload Files">
           <Link 
-            href="/dashboard/upload"
+            href="/upload"
             className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors w-full ${
-              pathname === "/dashboard/upload" 
+              pathname === "/upload" 
                 ? "bg-sidebar-accent text-foreground" 
                 : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent"
             }`}

@@ -88,3 +88,29 @@ npx prisma studio: Open the visual database editor to inspect local data.
 
 npx prisma generate: Run this every time you pull changes to the schema.prisma file.
 
+--Database Setup--
+Sync the Prisma schema and generate the client
+
+npx prisma generate
+npx prisma db push
+
+--Running the Development Server--
+
+Important: Due to specific Tailwind v3 configurations, run the server without Turbopack for the best experience:
+
+npm run dev -- --turbo=false
+
+--Project Architecture--
+
+src/app/(dashboard): Contains all internal dashboard features wrapped in a shared sidebar layout.
+
+src/components/dashboard: Shared UI elements like the Navigation Sidebar and Header.
+
+src/contexts: Global state management including Authentication.
+
+--Critical Setup Notes--
+
+Tailwind v4 Bridge: This project uses a custom postcss.config.mjs to ensure Tailwind v3 features (like custom HSL variables) work within the Next.js 15+ environment.
+
+Route Groups: All internal pages are located within the (dashboard) group. Ensure href paths in components match the lowercase folder structure.
+

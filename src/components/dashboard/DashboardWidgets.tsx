@@ -1,3 +1,4 @@
+"use client";
 import { Clock, AlertCircle, CheckCircle, FileWarning, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import RadialProgress from "./RadialProgress";
 import { Badge } from "@/components/ui/badge";

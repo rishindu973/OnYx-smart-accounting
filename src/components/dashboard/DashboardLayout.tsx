@@ -1,3 +1,4 @@
+"use client";
 import { useRouter } from "next/navigation";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import DashboardSidebar from "./DashboardSidebar";
