@@ -100,6 +100,7 @@ model ExtractedInformation{
   documentId            String          @unique
   document              Document        @relation(fields: [documentId], references: [id])
   extractedData         Json            @map("extracted_data")
+  totalAmount           Decimal         @default(0.00) @map("total_amount") @db.Decimal(15, 2)
   confidenceScores      Json            @map("confidence_score")
   amountValidationPass  Boolean         @default(false) @map("amount_validation")
   isManual              Boolean         @default(false) @map("is_manual")
