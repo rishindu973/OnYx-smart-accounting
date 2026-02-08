@@ -27,3 +27,4 @@ export interface UniversalDocument{
         validation_message?: string; // for python validation feedback
     };
 }
+

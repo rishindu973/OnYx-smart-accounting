@@ -65,6 +65,13 @@ const ReviewWorkspace = ({ data: initialData }: ReviewWorkspaceProps) => {
   }
 };
 
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-LK', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount);
+  };
+
   return (
     <div className="h-[calc(100vh-4rem)] flex overflow-hidden">
       {/*LEFT SIDE: DOCUMENT VIEWER */}
@@ -153,11 +160,12 @@ const ReviewWorkspace = ({ data: initialData }: ReviewWorkspaceProps) => {
     <Input
       id="amount"
       type="number"
+      step="0.01"
       defaultValue={formData.extracted_data.total_amount}
       className={getFieldStyle('amount_numeric')}
       onChange={(e) => setFormData({
         ...formData,
-        extracted_data: { ...formData.extracted_data, total_amount: parseFloat(e.target.value) || 0 }
+        extracted_data: { ...formData.extracted_data, total_amount: Number(parseFloat(e.target.value).toFixed(2)) || 0 }
       })}
     />
   </div>
