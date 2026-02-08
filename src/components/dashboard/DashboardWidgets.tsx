@@ -1,17 +1,99 @@
 "use client";
-import { Clock, AlertCircle, CheckCircle, FileWarning, ArrowUpRight, ArrowDownRight } from "lucide-react";
+
+import { useEffect, useState } from "react";
+import {
+  Clock,
+  AlertCircle,
+  CheckCircle,
+  FileWarning,
+  ArrowUpRight,
+  ArrowDownRight,
+} from "lucide-react";
+
 import RadialProgress from "./RadialProgress";
 import { Badge } from "@/components/ui/badge";
+import type { DashboardMetrics } from "@/types/dashboard";
 
-const recentActivity = [
-  { id: 1, description: "Invoice #4521 - ABC Corp", amount: 2450.00, source: "AI_SCAN", status: "verified", date: "2 min ago" },
-  { id: 2, description: "Cheque #892 - Delta LLC", amount: 8900.00, source: "AI_SCAN", status: "pending", date: "15 min ago" },
-  { id: 3, description: "Manual Entry - Utilities", amount: 340.00, source: "USER_INPUT", status: "verified", date: "1 hour ago" },
-  { id: 4, description: "Invoice #4520 - Omega Inc", amount: 12500.00, source: "AI_SCAN", status: "verified", date: "3 hours ago" },
-  { id: 5, description: "Cheque #891 - Beta Co", amount: 5600.00, source: "USER_INPUT", status: "verified", date: "5 hours ago" },
-];
+function timeAgo(iso: string) {
+  const d = new Date(iso);
+  const diff = Date.now() - d.getTime();
+  if (Number.isNaN(d.getTime())) return "just now";
+
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} hour${hrs === 1 ? "" : "s"} ago`;
+
+  const days = Math.floor(hrs / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
 
 const DashboardWidgets = () => {
+  const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    const run = async () => {
+      try {
+        setErrorMsg(null);
+        const res = await fetch("/api/dashboard", { cache: "no-store" });
+        if (!res.ok) throw new Error(`Failed to load dashboard: ${res.status}`);
+        const data = (await res.json()) as DashboardMetrics;
+        setMetrics(data);
+      } catch (e) {
+        console.error(e);
+        setMetrics(null);
+        setErrorMsg("Could not load dashboard data.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    run();
+  }, []);
+
+  if (loading) return <div className="p-6">Loading dashboard...</div>;
+
+  if (errorMsg) {
+    return (
+      <div className="p-6">
+        <div className="glass-card rounded-xl p-5 border border-destructive/20">
+          <p className="text-sm font-medium">{errorMsg}</p>
+          <p className="text-xs text-muted-foreground mt-2">
+            Check <span className="font-mono">/api/dashboard</span> and console logs.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const todaysTransactions = metrics?.todaysTransactions ?? 0;
+  const growthPct = metrics?.transactionsGrowthPct ?? 0;
+
+  const processedAmount = metrics?.processedAmount ?? 0;
+  const processedCount = metrics?.processedBreakdown?.processed ?? 0;
+  const pendingCount = metrics?.processedBreakdown?.pending ?? 0;
+
+  const aiConfidenceAvg = metrics?.aiConfidenceAvg ?? 0;
+
+  const reversalsToday = metrics?.reversalsToday ?? 0;
+  const reversalsAmount = metrics?.reversalsAmount ?? 0;
+
+  const pendingReviewCount = metrics?.pendingReviewCount ?? 0;
+  const pendingReviewItems = metrics?.pendingReviewItems ?? [];
+
+  const daily = metrics?.dailyLimit ?? {
+    limit: 50000,
+    used: 15500,
+    remaining: 34500,
+    percent: 69,
+  };
+
+  const recentActivity = metrics?.recentActivity ?? [];
+
   return (
     <div className="p-6 space-y-6">
       {/* Stats Row */}
@@ -20,7 +102,7 @@ const DashboardWidgets = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Today's Transactions</p>
-              <p className="text-2xl font-bold mt-1">24</p>
+              <p className="text-2xl font-bold mt-1">{todaysTransactions}</p>
             </div>
             <div className="p-3 rounded-lg bg-primary/10">
               <ArrowUpRight className="w-5 h-5 text-primary" />
@@ -28,52 +110,54 @@ const DashboardWidgets = () => {
           </div>
           <p className="text-xs text-success mt-3 flex items-center gap-1">
             <ArrowUpRight className="w-3 h-3" />
-            12% from yesterday
+            {growthPct}% from yesterday
           </p>
         </div>
-        
+
         <div className="glass-card rounded-xl p-5">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Processed Amount</p>
-              <p className="text-2xl font-bold mt-1">$48,290</p>
+              <p className="text-2xl font-bold mt-1">
+                ${processedAmount.toLocaleString()}
+              </p>
             </div>
             <div className="p-3 rounded-lg bg-success/10">
               <CheckCircle className="w-5 h-5 text-success" />
             </div>
           </div>
           <p className="text-xs text-muted-foreground mt-3">
-            18 verified, 6 pending
+            {processedCount} processed, {pendingCount} pending
           </p>
         </div>
-        
+
         <div className="glass-card rounded-xl p-5">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">AI Confidence Avg</p>
-              <p className="text-2xl font-bold mt-1">94.2%</p>
+              <p className="text-2xl font-bold mt-1">{aiConfidenceAvg}%</p>
             </div>
             <div className="p-3 rounded-lg bg-primary/10">
               <AlertCircle className="w-5 h-5 text-primary" />
             </div>
           </div>
           <p className="text-xs text-muted-foreground mt-3">
-            2 items need review
+            {pendingReviewCount} items need review
           </p>
         </div>
-        
+
         <div className="glass-card rounded-xl p-5">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Reversals Today</p>
-              <p className="text-2xl font-bold mt-1">1</p>
+              <p className="text-2xl font-bold mt-1">{reversalsToday}</p>
             </div>
             <div className="p-3 rounded-lg bg-warning/10">
               <ArrowDownRight className="w-5 h-5 text-warning" />
             </div>
           </div>
           <p className="text-xs text-muted-foreground mt-3">
-            $1,200 reversed
+            ${reversalsAmount.toLocaleString()} reversed
           </p>
         </div>
       </div>
@@ -83,18 +167,16 @@ const DashboardWidgets = () => {
         {/* Daily Limit Card */}
         <div className="glass-card rounded-xl p-6 flex flex-col items-center justify-center">
           <h3 className="text-lg font-semibold mb-6">Daily Spending Limit</h3>
-          <RadialProgress 
-            current={34500} 
-            max={50000} 
-            size={220}
-            strokeWidth={14}
-          />
+          <RadialProgress current={daily.used} max={daily.limit} size={220} strokeWidth={14} />
           <div className="mt-6 text-center">
             <p className="text-sm text-muted-foreground">
-              <span className="text-success font-medium">$15,500</span> remaining today
+              <span className="text-success font-medium">
+                ${daily.remaining.toLocaleString()}
+              </span>{" "}
+              remaining today
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              Resets at 12:00 AM EST
+              {daily.percent}% used today
             </p>
           </div>
         </div>
@@ -105,55 +187,47 @@ const DashboardWidgets = () => {
             <h3 className="text-lg font-semibold">Pending Review</h3>
             <Badge variant="pending" className="flex items-center gap-1">
               <Clock className="w-3 h-3" />
-              6 items
+              {pendingReviewCount} items
             </Badge>
           </div>
-          
+
           <div className="space-y-4">
-            <div className="p-4 rounded-lg bg-warning/5 border border-warning/20">
-              <div className="flex items-start gap-3">
-                <FileWarning className="w-5 h-5 text-warning shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-medium text-sm">Low Confidence Extraction</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Cheque #892 - Amount field confidence: 72%
-                  </p>
-                  <button className="text-xs text-primary font-medium mt-2 hover:underline">
-                    Review Now →
-                  </button>
+            {pendingReviewItems.slice(0, 3).map((item) => (
+              <div
+                key={item.id + item.type}
+                className={`p-4 rounded-lg border ${
+                  item.type === "LOW_CONFIDENCE" || item.type === "FAILED_VALIDATION"
+                    ? "bg-warning/5 border-warning/20"
+                    : item.type === "NEW_VENDOR"
+                    ? "bg-primary/5 border-primary/20"
+                    : "bg-muted/50 border-border"
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  {item.type === "LOW_CONFIDENCE" || item.type === "FAILED_VALIDATION" ? (
+                    <FileWarning className="w-5 h-5 text-warning shrink-0 mt-0.5" />
+                  ) : item.type === "NEW_VENDOR" ? (
+                    <AlertCircle className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                  ) : (
+                    <Clock className="w-5 h-5 text-muted-foreground shrink-0 mt-0.5" />
+                  )}
+
+                  <div>
+                    <p className="font-medium text-sm">{item.title}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{item.message}</p>
+                    {item.actionLabel ? (
+                      <button className="text-xs text-primary font-medium mt-2 hover:underline">
+                        {item.actionLabel}
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
               </div>
-            </div>
-            
-            <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-primary shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-medium text-sm">New Vendor Detected</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    "TechFlow Solutions" not in vendor list
-                  </p>
-                  <button className="text-xs text-primary font-medium mt-2 hover:underline">
-                    Create Account →
-                  </button>
-                </div>
-              </div>
-            </div>
-            
-            <div className="p-4 rounded-lg bg-muted/50 border border-border">
-              <div className="flex items-start gap-3">
-                <Clock className="w-5 h-5 text-muted-foreground shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-medium text-sm">Awaiting Approval</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    4 entries pending supervisor sign-off
-                  </p>
-                  <button className="text-xs text-primary font-medium mt-2 hover:underline">
-                    View Queue →
-                  </button>
-                </div>
-              </div>
-            </div>
+            ))}
+
+            {pendingReviewItems.length === 0 && (
+              <p className="text-sm text-muted-foreground">Nothing to review right now.</p>
+            )}
           </div>
         </div>
 
@@ -163,32 +237,45 @@ const DashboardWidgets = () => {
             <h3 className="text-lg font-semibold">Recent Activity</h3>
             <button className="text-sm text-primary hover:underline">View All</button>
           </div>
-          
+
           <div className="space-y-3">
-            {recentActivity.map((item) => (
-              <div 
-                key={item.id}
-                className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`w-2 h-2 rounded-full ${
-                    item.status === 'verified' ? 'bg-success' : 'bg-warning'
-                  }`} />
-                  <div>
-                    <p className="text-sm font-medium truncate max-w-[180px]">{item.description}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <Badge variant={item.source === 'AI_SCAN' ? 'ai' : 'manual'} className="text-[10px]">
-                        {item.source}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">{item.date}</span>
+            {recentActivity.map((item) => {
+              const isVerified = item.source === "AI_SCAN";
+
+              return (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-2 h-2 rounded-full ${isVerified ? "bg-success" : "bg-warning"}`} />
+                    <div>
+                      <p className="text-sm font-medium truncate max-w-[180px]">{item.title}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <Badge
+                          variant={item.source === "AI_SCAN" ? "ai" : "manual"}
+                          className="text-[10px]"
+                        >
+                          {item.source}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">{timeAgo(item.time)}</span>
+                      </div>
+                      {item.subtitle ? (
+                        <p className="text-xs text-muted-foreground mt-1">{item.subtitle}</p>
+                      ) : null}
                     </div>
                   </div>
+
+                  <span className="text-sm font-medium">
+                    ${Number(item.amount).toLocaleString()}
+                  </span>
                 </div>
-                <span className="text-sm font-medium">
-                  ${item.amount.toLocaleString()}
-                </span>
-              </div>
-            ))}
+              );
+            })}
+
+            {recentActivity.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No recent activity.</p>
+            ) : null}
           </div>
         </div>
       </div>
