@@ -37,26 +37,37 @@ const DashboardWidgets = () => {
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  useEffect(() => {
-    const run = async () => {
-      try {
-        // setLoading(true); // Optional: if we want to show loading spinner on every update
-        setErrorMsg(null);
-        const res = await fetch("/api/dashboard", { cache: "no-store" });
-        if (!res.ok) throw new Error(`Failed to load dashboard: ${res.status}`);
-        const data = (await res.json()) as DashboardMetrics;
-        setMetrics(data);
-      } catch (e) {
-        console.error(e);
+useEffect(() => {
+  let alive = true;
+
+  const load = async () => {
+    try {
+      setErrorMsg(null);
+      const res = await fetch("/api/dashboard", { cache: "no-store" });
+      if (!res.ok) throw new Error(`Failed to load dashboard: ${res.status}`);
+      const data = (await res.json()) as DashboardMetrics;
+      if (alive) setMetrics(data);
+    } catch (e) {
+      console.error(e);
+      if (alive) {
         setMetrics(null);
         setErrorMsg("Could not load dashboard data.");
-      } finally {
-        setLoading(false);
       }
-    };
+    } finally {
+      if (alive) setLoading(false);
+    }
+  };
 
-    run();
-  }, [newTransactionCount]);
+  load();
+  const timer = setInterval(load, 5000); // refresh every 5s
+
+  return () => {
+    alive = false;
+    clearInterval(timer);
+  };
+}, []);
+
+
 
   if (loading) return <div className="p-6">Loading dashboard...</div>;
 
