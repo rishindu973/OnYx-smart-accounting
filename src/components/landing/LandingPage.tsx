@@ -18,7 +18,7 @@ const LandingPage = () => {
             <span className="text-gradient">Financial Visibility?</span>
           </h2>
           <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-            Join 500+ organizations that trust OnYx for their financial governance needs.
+            Join 12+ organizations that trust OnYx for their financial governance needs.
           </p>
           <div className="flex justify-center gap-4">
             <a href="/dashboard" className="inline-flex items-center justify-center rounded-xl bg-primary text-primary-foreground h-14 px-8 text-lg font-semibold hover:bg-primary/90 transition-colors">
