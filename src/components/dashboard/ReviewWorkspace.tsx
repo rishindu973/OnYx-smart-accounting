@@ -24,10 +24,14 @@ interface ReviewWorkspaceProps {
   data: UniversalDocument;
 }
 
-const ReviewWorkspace = ({ data: initialData }: ReviewWorkspaceProps) => {
+  const ReviewWorkspace = ({ data: initialData }: ReviewWorkspaceProps) => {
   const [formData, setFormData] = useState(initialData);
   const [zoom, setZoom] = useState(100);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [showVendorAlert, setShowVendorAlert] = useState(formData.intelligence.is_new_vendor);
+  const handleDismissVendorAlert = () => {
+  setShowVendorAlert(false);
+};
 
   useEffect(() => {
     // Retrieve the preview URL we saved during the upload step
@@ -71,6 +75,28 @@ const ReviewWorkspace = ({ data: initialData }: ReviewWorkspaceProps) => {
       maximumFractionDigits: 2
     }).format(amount);
   };
+
+ const handleCreateDraftAccount = async () => {
+  try {
+    // Member 5 logic: This is where you would call a server action 
+    // to create the account in your Chart_of_accounts table.
+    
+    // Update local state to show the user the "Brain" has acted
+    setFormData(prev => ({
+      ...prev,
+      intelligence: {
+        ...prev.intelligence,
+        is_new_vendor: false, // flag turn off
+        suggested_account_id: "DRAFT_ACC_PENDING", // Assign a draft account ID
+      }
+    }));
+
+    setShowVendorAlert(false);
+    alert(`Member 5 Logic: Draft account suggested for ${formData.extracted_data.payee_name}`);
+  } catch (error) {
+    console.error("Provisioning failed:", error);
+  }
+};
 
   return (
     <div className="h-[calc(100vh-4rem)] flex overflow-hidden">
@@ -116,81 +142,110 @@ const ReviewWorkspace = ({ data: initialData }: ReviewWorkspaceProps) => {
         </div>
 
         <div className="flex-1 p-6 overflow-auto space-y-6">
-          <div className="space-y-5">
-  {/*Payee Field */}
-  <div className="space-y-2">
-    <div className="flex items-center justify-between">
-      <Label htmlFor="payee">Payee</Label>
-      {getConfidenceBadge('payee_name')}
-    </div>
-    <Input
-      id="payee"
-      defaultValue={formData.extracted_data.payee_name}
-      className={getFieldStyle('payee_name')}
-      onChange={(e) => setFormData({
-        ...formData,
-        extracted_data: { ...formData.extracted_data, payee_name: e.target.value }
-      })}
-    />
-  </div>
+        {showVendorAlert && (
+      <motion.div 
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-primary/5 border border-primary/20 rounded-xl p-4 mb-6 flex items-start gap-4"
+      >
+        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+          <UserPlus className="w-5 h-5 text-primary" />
+        </div>
+        <div className="flex-1">
+          <h4 className="font-semibold text-sm">New Vendor Detected</h4>
+          <p className="text-xs text-muted-foreground mb-3">
+            "{formData.extracted_data.payee_name}" is not in your vendor list.
+          </p>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={handleCreateDraftAccount}>
+              Create Draft Account
+            </Button>
+            <Button size="sm" variant="ghost" onClick={handleDismissVendorAlert}>
+              Dismiss
+            </Button>
+          </div>
+        </div>
+        <button onClick={handleDismissVendorAlert} className="text-muted-foreground hover:text-foreground">
+          <X className="w-4 h-4" />
+        </button>
+      </motion.div>
+    )}
+        <div className="space-y-5">
+            
+      {/*Payee Field */}
+      <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="payee">Payee</Label>
+              {getConfidenceBadge('payee_name')}
+          </div>
+        <Input
+          id="payee"
+          defaultValue={formData.extracted_data.payee_name}
+          className={getFieldStyle('payee_name')}
+          onChange={(e) => setFormData({
+          ...formData,
+          extracted_data: { ...formData.extracted_data, payee_name: e.target.value }
+        })}
+        />
+          </div>
 
-  {/* Date Field (Fixed for OCR data)*/}
-  <div className="space-y-2">
-    <div className="flex items-center justify-between">
-      <Label htmlFor="date">Date</Label>
-      {getConfidenceBadge('date')}
-    </div>
-    <Input
-      id="date"
-      defaultValue={formData.extracted_data.date}
-      className={getFieldStyle('date')}
-      onChange={(e) => setFormData({
-        ...formData,
-        extracted_data: { ...formData.extracted_data, date: e.target.value }
-      })}
-    />
-  </div>
+      {/* Date Field (Fixed for OCR data)*/}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="date">Date</Label>
+              {getConfidenceBadge('date')}
+          </div>
+        <Input
+        id="date"
+        defaultValue={formData.extracted_data.date}
+        className={getFieldStyle('date')}
+        onChange={(e) => setFormData({
+          ...formData,
+          extracted_data: { ...formData.extracted_data, date: e.target.value }
+        })}
+        />
+        </div>
 
-  {/* Amount Field */}
-  <div className="space-y-2">
-    <div className="flex items-center justify-between">
-      <Label htmlFor="amount">Amount (Rupees)</Label>
-      {getConfidenceBadge('amount_numeric')}
-    </div>
-    <Input
-      id="amount"
-      type="number"
-      step="0.01"
-      defaultValue={formData.extracted_data.total_amount}
-      className={getFieldStyle('amount_numeric')}
-      onChange={(e) => setFormData({
-        ...formData,
-        extracted_data: { ...formData.extracted_data, total_amount: Number(parseFloat(e.target.value).toFixed(2)) || 0 }
-      })}
-    />
-  </div>
+      {/* Amount Field */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="amount">Amount (Rupees)</Label>
+              {getConfidenceBadge('amount_numeric')}
+          </div>
+        <Input
+        id="amount"
+        type="number"
+        step="0.01"
+        defaultValue={formData.extracted_data.total_amount}
+        className={getFieldStyle('amount_numeric')}
+        onChange={(e) => setFormData({
+          ...formData,
+          extracted_data: { ...formData.extracted_data, total_amount: Number(parseFloat(e.target.value).toFixed(2)) || 0 }
+        })}
+        />
+        </div>
 
-  {/*Amount in Words Field */}
-  <div className="space-y-2">
-    <div className="flex items-center justify-between">
-      <Label htmlFor="amountWords">Amount in Words</Label>
-      {getConfidenceBadge('amount_in_words')}
-    </div>
-    <Input
-      id="amountWords"
-      defaultValue={formData.extracted_data.amount_in_words}
-      className={getFieldStyle('amount_in_words')}
-      onChange={(e) => setFormData({
-        ...formData,
-        extracted_data: { ...formData.extracted_data, amount_in_words: e.target.value }
-      })}
-    />
-  </div>
-</div>
+      {/*Amount in Words Field */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="amountWords">Amount in Words</Label>
+            {getConfidenceBadge('amount_in_words')}
+          </div>
+        <Input
+        id="amountWords"
+        defaultValue={formData.extracted_data.amount_in_words}
+        className={getFieldStyle('amount_in_words')}
+        onChange={(e) => setFormData({
+          ...formData,
+          extracted_data: { ...formData.extracted_data, amount_in_words: e.target.value }
+        })}
+        />
+        </div>
+      </div>
 
-          {/* Logic Validation Status*/}
-          <div className={`p-4 rounded-xl border ${amountsMatch ? 'bg-success/10 border-success/30' : 'bg-destructive/10 border-destructive/30'}`}>
-            <div className="flex items-center gap-3">
+      {/* Logic Validation Status*/}
+        <div className={`p-4 rounded-xl border ${amountsMatch ? 'bg-success/10 border-success/30' : 'bg-destructive/10 border-destructive/30'}`}>
+          <div className="flex items-center gap-3">
               {amountsMatch ? <CheckCircle className="w-6 h-6 text-success" /> : <AlertTriangle className="w-6 h-6 text-destructive" />}
             <div>
               <p className={`font-semibold ${amountsMatch ? 'text-success' : 'text-destructive'}`}>
