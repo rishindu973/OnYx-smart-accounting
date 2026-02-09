@@ -4,14 +4,16 @@ import { db } from "@/lib/db";
 import { UniversalDocument } from "@/types/accounting";
 import { DocType } from "@prisma/client";
 
-export async function saveScannedDocument(data: UniversalDocument, companyId: string) {
+export async function saveScannedDocument(data: UniversalDocument, companyId: string, fileUrl: string) {
+
   try {
     const newDoc = await db.document.create({
       data: {
         companyId: companyId,
-        type: data.metadata.type === "CHEQUE" ? DocType.Cheque : DocType.Invoice, 
+        type: data.metadata.type === "CHEQUE" ? DocType.Cheque : DocType.Invoice,
         
         status: "PENDING",
+        fileUrl: fileUrl,
         extraction: {
           create: {
             extractedData: data.extracted_data as any,

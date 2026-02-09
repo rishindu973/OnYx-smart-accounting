@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { UniversalDocument } from "@/types/accounting";
-import { Form } from "lucide-react";
-import { headers } from "next/headers";
+import { prisma } from "@/lib/prisma";
+import Fuse from "fuse.js";
 
 export async function POST(request: Request) {
     try{
@@ -39,16 +39,26 @@ export async function POST(request: Request) {
 
     const extracted: Record<string, any> = {}; // Initialize an object to hold the extracted data
     predictions.forEach((p: any) => {
-        extracted[p.label] = {
+        const label = p.label.toLowerCase();
+        if (label === 'payee_name' || label === 'payto_name' || label === 'buyer_name') {
+        extracted['payee_name'] = { value: p.ocr_text, confidence: p.score };
+    } else if (label === 'amount_numeric' || label === 'invoice_amount') {
+        extracted['amount_numeric'] = { value: p.ocr_text, confidence: p.score };
+    } else {
+        extracted[label] = {
             value: p.ocr_text,
             confidence: p.score }; // Map each prediction to the extracted object with its label, value, and confidence score
+        }
     });
 
-    const rawNum = extracted.amount_numeric?.value || "0";
+    // const rawNum = extracted.amount_numeric?.value || "0";
     const numAmt = parseFloat(extracted.amount_numeric?.value?.replace(/[^0-9.]/g, '') || "0");// Convert the extracted total amount to a number, defaulting to 0 if it's not available
     const wordAmt = extracted.amount_in_words?.value || ""; // Get the extracted amount in words, defaulting to an empty string if it's not available
-    const rawPayee = extracted.payee_name?.value || "";
+    // const rawPayee = extracted.payee_name?.value || "";
     const payeeScore = extracted.payee_name?.confidence || 0;
+    // const vendorMatch = await findNormalizationVendorMatch(rawPayee);
+    const rawPayee = extracted.payee_name?.value || "";
+    const vendorMatch = await findNormalizationVendorMatch(rawPayee);
 
     console.log("--- Onyx OCR Debug Start ---");
     console.log(`Date: ${extracted.date?.value} (Score: ${extracted.date?.confidence})`);
@@ -58,12 +68,15 @@ export async function POST(request: Request) {
     console.log(`Words: ${extracted.amount_in_words?.value} (Score: ${extracted.amount_in_words?.confidence})`);
     console.log("--- Onyx OCR Debug End ---");
     
-    const isReliable = payeeScore > 0.95 || (payeeScore === 0 && rawPayee !== "NOT_FOUND" && rawPayee !== "");
+    const isReliable = payeeScore > 0.70 || (payeeScore === 0 && rawPayee !== "NOT_FOUND" && rawPayee !== "");
 
     const payeeName = isReliable ? rawPayee : "Review Required";
     const isCheque = extracted.amount_in_words !== undefined || extracted.endorsement !== undefined;
     const docType = isCheque ? "CHEQUE" : "INVOICE"; // Determine the document type based on the presence of cheque-specific fields
-
+    const finalPayeeName = !vendorMatch.isNew
+    ? vendorMatch.matchedName // Normalize to DB name if fuzzy match found [cite: 21]
+    : (isReliable ? rawPayee : "Review Required");
+    
     const doc: UniversalDocument = {
         metadata: {
             type: docType,
@@ -72,7 +85,7 @@ export async function POST(request: Request) {
         },
         extracted_data: {
             date: extracted.date?.value || "",
-            payee_name: payeeName,
+            payee_name: finalPayeeName,
             // total_amount: parseFloat(extracted.amount_numeric?.value?.replace(/[^0-9.]/g, '') || "0"),
             total_amount: numAmt,
             // amount_in_words: extracted.amount_in_words?.value || "",
@@ -82,7 +95,7 @@ export async function POST(request: Request) {
         intelligence: {
             confidence_score: {
             date: extracted.date?.confidence || 0,
-            payee_name: extracted.payee_name?.confidence || 0,
+            payee_name: payeeScore,
             amount_numeric: extracted.amount_numeric?.confidence || 0,
             amount_in_words: extracted.amount_in_words?.confidence || 0,
             bank_name: extracted.bank_name?.confidence || 0,
@@ -91,15 +104,39 @@ export async function POST(request: Request) {
         },
             // amount_validation_passed: wordAmt.toLowerCase().includes(numAmt.toString().split('.')[0]),
             amount_validation_passed: isAmountValid(numAmt, wordAmt),
-            suggestion_account_id: null,
-            is_new_vendor: true,
+            suggestion_account_id: vendorMatch.accountId,
+            is_new_vendor: vendorMatch.isNew,
         },
     };
-    return NextResponse.json(doc); // Return the extracted document data as a JSON response
+           return NextResponse.json(doc); // Return the extracted document data as a JSON response
         }catch(err:any){
             return NextResponse.json({ error: err.message }, { status: 500 }); // Return a 500 Internal Server Error response with the error message if any error occurs during the OCR processing
         }
     };
+
+
+    async function findNormalizationVendorMatch(ocrName: string) {
+    if (!ocrName || ocrName === "Review Required") return { isNew: true, accountId: null };
+
+    // Fetch from your database
+    const knownVendors = await prisma.vendorMapping.findMany();
+    
+    const fuse = new Fuse(knownVendors, {
+        keys: ['vendor_name'],
+        threshold: 0.4,
+    });
+
+    const result = fuse.search(ocrName);
+
+    if (result.length > 0) {
+        return {
+            isNew: false,
+            accountId: result[0].item.defaultDebitAccountId,
+            matchedName: result[0].item.vendorName
+        };
+    }
+    return { isNew: true, accountId: null };
+}
 
 function isAmountValid(num: number, words: string): boolean {
     if (!words || num === 0) return true;

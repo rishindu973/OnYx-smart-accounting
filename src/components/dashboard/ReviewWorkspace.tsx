@@ -56,10 +56,15 @@ interface ReviewWorkspaceProps {
 
   const handlePost = async () => {
   const activeCompanyId = "clx-onyx-001"; // Matches seeded company
+  const permanentUrl = sessionStorage.getItem("last_scanned_image_permanent") || "";
   
   console.log("Final payload to database:", formData.extracted_data);
 
-  const result = await saveScannedDocument(formData, activeCompanyId);
+  const result = await saveScannedDocument(
+    formData,
+    activeCompanyId,
+    permanentUrl || ""
+  );
   
   if (result.success) {
     alert("Transaction Posted: AI results and manual corrections are now in PostgreSQL.");
@@ -143,33 +148,30 @@ interface ReviewWorkspaceProps {
 
         <div className="flex-1 p-6 overflow-auto space-y-6">
         {showVendorAlert && (
-      <motion.div 
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-primary/5 border border-primary/20 rounded-xl p-4 mb-6 flex items-start gap-4"
-      >
-        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-          <UserPlus className="w-5 h-5 text-primary" />
-        </div>
-        <div className="flex-1">
-          <h4 className="font-semibold text-sm">New Vendor Detected</h4>
-          <p className="text-xs text-muted-foreground mb-3">
-            "{formData.extracted_data.payee_name}" is not in your vendor list.
-          </p>
-          <div className="flex gap-2">
-            <Button size="sm" onClick={handleCreateDraftAccount}>
-              Create Draft Account
-            </Button>
-            <Button size="sm" variant="ghost" onClick={handleDismissVendorAlert}>
-              Dismiss
-            </Button>
-          </div>
-        </div>
-        <button onClick={handleDismissVendorAlert} className="text-muted-foreground hover:text-foreground">
-          <X className="w-4 h-4" />
-        </button>
-      </motion.div>
-    )}
+  <motion.div 
+    initial={{ opacity: 0, y: -10 }}
+    animate={{ opacity: 1, y: 0 }}
+    className="bg-primary/5 border border-primary/20 rounded-xl p-4 mb-6 flex items-start gap-4"
+  >
+    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+      <UserPlus className="w-5 h-5 text-primary" />
+    </div>
+    <div className="flex-1">
+      <h4 className="font-semibold text-sm">New Vendor Detected</h4>
+      <p className="text-xs text-muted-foreground mb-3">
+        "{formData.extracted_data.payee_name}" is not in your vendor list.
+      </p>
+      <div className="flex gap-2">
+        <Button size="sm" onClick={handleCreateDraftAccount}>
+          Create Draft Account
+        </Button>
+        <Button size="sm" variant="ghost" onClick={handleDismissVendorAlert}>
+          Dismiss
+        </Button>
+      </div>
+    </div>
+  </motion.div>
+)}
         <div className="space-y-5">
             
       {/*Payee Field */}
