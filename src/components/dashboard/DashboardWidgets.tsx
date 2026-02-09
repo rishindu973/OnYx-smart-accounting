@@ -13,6 +13,7 @@ import {
 import RadialProgress from "./RadialProgress";
 import { Badge } from "@/components/ui/badge";
 import type { DashboardMetrics } from "@/types/dashboard";
+import { useLedger } from "@/contexts/LedgerContext";
 
 function timeAgo(iso: string) {
   const d = new Date(iso);
@@ -31,29 +32,42 @@ function timeAgo(iso: string) {
 }
 
 const DashboardWidgets = () => {
+  const { newTransactionCount } = useLedger();
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  useEffect(() => {
-    const run = async () => {
-      try {
-        setErrorMsg(null);
-        const res = await fetch("/api/dashboard", { cache: "no-store" });
-        if (!res.ok) throw new Error(`Failed to load dashboard: ${res.status}`);
-        const data = (await res.json()) as DashboardMetrics;
-        setMetrics(data);
-      } catch (e) {
-        console.error(e);
+useEffect(() => {
+  let alive = true;
+
+  const load = async () => {
+    try {
+      setErrorMsg(null);
+      const res = await fetch("/api/dashboard", { cache: "no-store" });
+      if (!res.ok) throw new Error(`Failed to load dashboard: ${res.status}`);
+      const data = (await res.json()) as DashboardMetrics;
+      if (alive) setMetrics(data);
+    } catch (e) {
+      console.error(e);
+      if (alive) {
         setMetrics(null);
         setErrorMsg("Could not load dashboard data.");
-      } finally {
-        setLoading(false);
       }
-    };
+    } finally {
+      if (alive) setLoading(false);
+    }
+  };
 
-    run();
-  }, []);
+  load();
+  const timer = setInterval(load, 5000); // refresh every 5s
+
+  return () => {
+    alive = false;
+    clearInterval(timer);
+  };
+}, []);
+
+
 
   if (loading) return <div className="p-6">Loading dashboard...</div>;
 
@@ -195,13 +209,12 @@ const DashboardWidgets = () => {
             {pendingReviewItems.slice(0, 3).map((item) => (
               <div
                 key={item.id + item.type}
-                className={`p-4 rounded-lg border ${
-                  item.type === "LOW_CONFIDENCE" || item.type === "FAILED_VALIDATION"
-                    ? "bg-warning/5 border-warning/20"
-                    : item.type === "NEW_VENDOR"
+                className={`p-4 rounded-lg border ${item.type === "LOW_CONFIDENCE" || item.type === "FAILED_VALIDATION"
+                  ? "bg-warning/5 border-warning/20"
+                  : item.type === "NEW_VENDOR"
                     ? "bg-primary/5 border-primary/20"
                     : "bg-muted/50 border-border"
-                }`}
+                  }`}
               >
                 <div className="flex items-start gap-3">
                   {item.type === "LOW_CONFIDENCE" || item.type === "FAILED_VALIDATION" ? (

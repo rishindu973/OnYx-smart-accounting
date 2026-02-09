@@ -8,9 +8,10 @@ interface LedgerContextType {
     transactions: LedgerEntry[];
     newTransactionCount: number;
     notifications: string[]; // Added notifications array
-    addTransaction: (transaction: LedgerEntry) => void;
+    addTransaction: (transaction: LedgerEntry) => Promise<void>;
     setTransactions: (transactions: LedgerEntry[]) => void;
-    voidTransaction: (id: string) => void; // Added voidTransaction
+    recordNewTransaction: (description: string, amount: number, isDebit: boolean) => void;
+    voidTransaction: (id: string) => Promise<void>; // Added voidTransaction
     clearNotifications: () => void;
     totals: {
         debit: number;
@@ -40,50 +41,69 @@ export const LedgerProvider = ({ children }: { children: ReactNode }) => {
         setTransactionsState(initialTransactions);
     };
 
-    const addTransaction = (transaction: LedgerEntry) => {
-        setTransactionsState((prev) => [transaction, ...prev]);
+    const recordNewTransaction = (description: string, amount: number, isDebit: boolean) => {
         setNewTransactionCount((prev) => prev + 1);
-        const message = `New transaction: ${transaction.description} (${transaction.debit ? 'Debit' : 'Credit'} ${transaction.debit || transaction.credit})`;
+        const message = `New transaction: ${description} (${isDebit ? 'Debit' : 'Credit'} ${amount})`;
         setNotifications(prev => [message, ...prev]);
         toast({
             title: "New Transaction",
-            description: "A new transaction happened.",
+            description: "Transaction saved successfully.",
         });
     };
 
-    const voidTransaction = (id: string) => {
-        setTransactionsState((prev) => {
-            const originalEntry = prev.find(t => t.id === id);
-            if (!originalEntry) return prev;
-            if (originalEntry.isReversed || originalEntry.reversalOfId) return prev;
+    const addTransaction = async (transaction: LedgerEntry) => {
+        // Optimistic update
+        setTransactionsState((prev) => [transaction, ...prev]);
+        try {
+            const { createTransaction } = await import("@/lib/actions/ledger");
+            const result = await createTransaction(transaction);
 
-            const reversalEntry: LedgerEntry = {
-                ...originalEntry,
-                id: `rev-${Date.now()}`,
-                date: new Date().toISOString().split('T')[0],
-                description: `Reversal of: ${originalEntry.description}`,
-                debit: originalEntry.credit, // Swap
-                credit: originalEntry.debit, // Swap
-                reversalOfId: originalEntry.id,
-                isReversed: false,
-                source: "USER_INPUT" // Reversals are usually manual or system generated actions
-            };
+            if (result && result.success) {
+                recordNewTransaction(transaction.description, transaction.debit || transaction.credit || 0, !!transaction.debit);
+            } else {
+                throw new Error(result?.error || "Unknown error");
+            }
+        } catch (error) {
+            console.error("Failed to save transaction", error);
+            // Rollback or notify error
+            toast({
+                title: "Error",
+                description: "Failed to save transaction to database.",
+                variant: "destructive"
+            });
+        }
+    };
 
-            // Update original entry to set isReversed = true
-            const updatedTransactions = prev.map(t =>
-                t.id === id ? { ...t, isReversed: true } : t
-            );
+    const voidTransaction = async (id: string) => {
+        // Optimistic update logic
+        // We find the transaction to be reversed
+        const originalEntry = transactions.find(t => t.id === id);
+        if (!originalEntry) return;
 
-            return [reversalEntry, ...updatedTransactions];
-        });
+        try {
+            const { voidTransaction: voidTx } = await import("@/lib/actions/ledger");
+            const result = await voidTx(id);
 
-        setNewTransactionCount((prev) => prev + 1);
-        setNotifications(prev => [`Transaction voided: ${id}`, ...prev]);
+            if (result && result.success) {
+                setNewTransactionCount((prev) => prev + 1);
+                setNotifications(prev => [`Transaction voided: ${id}`, ...prev]);
 
-        toast({
-            title: "Transaction Voided",
-            description: "Reversal entry created successfully.",
-        });
+                toast({
+                    title: "Transaction Voided",
+                    description: "Reversal entry created successfully.",
+                });
+            } else {
+                throw new Error(result?.error || "Unknown error");
+            }
+
+        } catch (error) {
+            console.error("Failed to void transaction", error);
+            toast({
+                title: "Error",
+                description: "Failed to void transaction.",
+                variant: "destructive"
+            });
+        }
     };
 
     const clearNotifications = () => {
@@ -124,6 +144,7 @@ export const LedgerProvider = ({ children }: { children: ReactNode }) => {
                 notifications,
                 addTransaction,
                 setTransactions,
+                recordNewTransaction,
                 voidTransaction,
                 clearNotifications,
                 totals,
