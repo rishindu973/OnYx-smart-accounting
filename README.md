@@ -33,7 +33,7 @@ npm install
 Regenerate Prisma Client Ensure your VS Code provides full TypeSafe auto-completion for our models.
 
 Bash
-npx prisma generate
+npx prisma 
 Client Component Awareness Most frontend pages use hooks (e.g., useState). Ensure any new UI-heavy pages start with the "use client"; directive at the top.
 Backend Logic Architecture (Where to Code)
 To keep the project clean, please place your code according to these designated areas:
@@ -92,7 +92,7 @@ npx prisma generate: Run this every time you pull changes to the schema.prisma f
 Sync the Prisma schema and generate the client
 
 npx prisma generate
-npx prisma db push
+npx pgeneraterisma db push
 
 --Running the Development Server--
 
