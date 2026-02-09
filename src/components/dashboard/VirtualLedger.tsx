@@ -40,29 +40,14 @@ const VirtualLedger = ({ initialData }: VirtualLedgerProps) => {
 
   // Initialize context with initialData
   useEffect(() => {
-    if (initialData && initialData.length > 0 && transactions.length === 0) {
+    if (initialData) {
       setTransactions(initialData);
     }
-  }, [initialData, setTransactions, transactions.length]);
+  }, [initialData, setTransactions]);
 
   const displayTransactions = transactions.length > 0 ? transactions : initialData;
 
-  const handleSimulateTransaction = () => {
-    const newTransaction: LedgerEntry = {
-      id: `sim-${Date.now()}`,
-      date: new Date().toISOString().split('T')[0],
-      description: "Simulated Transaction",
-      account: "Check Account",
-      accountCode: "1000",
-      debit: 500,
-      credit: null,
-      source: "USER_INPUT",
-      documentUrl: "",
-      reversalOfId: undefined,
-      isReversed: false
-    };
-    addTransaction(newTransaction);
-  };
+
 
   const formatCurrency = (value: number | null) => {
     if (value === null) return "—";
@@ -90,9 +75,7 @@ const VirtualLedger = ({ initialData }: VirtualLedgerProps) => {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button onClick={handleSimulateTransaction}>
-            Simulate Transaction
-          </Button>
+
           <Button variant="outline" className="gap-2">
             <Filter className="w-4 h-4" />
             Filter
@@ -245,16 +228,30 @@ const VirtualLedger = ({ initialData }: VirtualLedgerProps) => {
               Source Document
             </DialogTitle>
           </DialogHeader>
-          <div className="bg-muted rounded-lg p-8 min-h-[400px] flex items-center justify-center">
-            <div className="text-center text-muted-foreground">
-              <FileText className="w-16 h-16 mx-auto mb-4 opacity-50" />
-              <p className="font-medium">Document Preview</p>
-              <p className="text-sm">{selectedDocument}</p>
-              <Button variant="outline" className="mt-4 gap-2">
-                <ExternalLink className="w-4 h-4" />
-                Open Original
-              </Button>
-            </div>
+          <div className="bg-muted rounded-lg p-8 min-h-[400px] flex items-center justify-center relative overflow-hidden">
+            {selectedDocument ? (
+              <div className="w-full h-full flex flex-col items-center">
+                {/* Using a standard img tag for simplicity with external URLs, or you can use Next.js Image if domains are configured */}
+                <img
+                  src={selectedDocument}
+                  alt="Document Evidence"
+                  className="max-w-full max-h-[60vh] object-contain rounded-md shadow-sm"
+                />
+                <div className="mt-4 flex gap-2">
+                  <Button variant="outline" asChild>
+                    <a href={selectedDocument} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
+                      <ExternalLink className="w-4 h-4" />
+                      Open Original
+                    </a>
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center text-muted-foreground">
+                <FileText className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                <p className="font-medium">No document attached</p>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
