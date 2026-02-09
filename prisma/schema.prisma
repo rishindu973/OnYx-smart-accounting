@@ -26,7 +26,7 @@ model Company{
   id                String     @id @default(cuid())
   name              String
 
-  // ✅ Used as fallback if a specific DailyLimit row is not set for a date
+  // Used as fallback if a specific DailyLimit row is not set for a date
   dailyLimitBase    Decimal    @default(0) @map("daily_limit") @db.Decimal(15,2)
 
   fiscalYearStart   DateTime   @map("fiscal_year_start")
@@ -121,7 +121,7 @@ model JournalEntry{
   reversalOf           JournalEntry?   @relation("ReversalEntries", fields: [reversalOfId],references: [id])
   revertedBy           JournalEntry?   @relation("ReversalEntries")
 
-  // ✅ date-only posting date (prevents timezone shifting + enables fast grouping by day)
+  //  date-only posting date (prevents timezone shifting + enables fast grouping by day)
   entryDate            DateTime         @db.Date @map("entry_date")
 
   description          String?
@@ -166,7 +166,7 @@ model DailyLimit{
   companyId        String
   company          Company          @relation(fields: [companyId], references: [id])
 
-  // ✅ CHANGED: make it date-only to prevent timezone issues when rendering calendar
+  //  CHANGED: make it date-only to prevent timezone issues when rendering calendar
   date             DateTime         @db.Date
 
   maxAmount        Decimal          @default(0) @map("max_amount") @db.Decimal(15,2)
@@ -174,7 +174,7 @@ model DailyLimit{
   // ⚠️ Keep field (your frontend may expect it) BUT backend should compute from ledger credits.
   currentSpend     Decimal          @default(0) @map("current_spend") @db.Decimal(15,2)
 
-  // ✅ NEW: audit relation + timestamps
+  //  NEW: audit relation + timestamps
   createdAt        DateTime         @default(now()) @map("created_at")
   updatedAt        DateTime         @updatedAt @map("updated_at")
 
@@ -184,7 +184,7 @@ model DailyLimit{
   @@index([companyId, date])
 }
 
-// ✅ NEW: No-delete audit trail for DailyLimit changes
+//  NEW: No-delete audit trail for DailyLimit changes
 model DailyLimitAudit {
   id            String    @id @default(cuid())
   dailyLimitId  String    @map("daily_limit_id")
