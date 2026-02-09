@@ -12,6 +12,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 
 
 type DashboardHeaderData = {
@@ -45,6 +46,7 @@ const DashboardHeader = () => {
   return (
     <header className="h-16 border-b border-border bg-card/50 backdrop-blur-sm px-6 flex items-center justify-between sticky top-0 z-40">
       <div className="flex items-center gap-4">
+        <SidebarTrigger className="-ml-2" />
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-primary/10">
             <Building className="w-5 h-5 text-primary" />

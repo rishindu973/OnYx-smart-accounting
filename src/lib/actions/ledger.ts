@@ -82,6 +82,7 @@ export async function getLedgerLines(): Promise<LedgerEntry[]> {
             documentUrl: info.document.fileUrl || "",
             reversalOfId: undefined,
             isReversed: false,
+            isPending: true,
         }
     });
 
@@ -132,8 +133,38 @@ export async function createTransaction(data: LedgerEntry, companyId: string = "
     }
 }
 
-export async function voidTransaction(originalId: string, companyId: string = "clx-onyx-001") {
+export async function voidTransaction(originalId: string, isPending: boolean = false, companyId: string = "clx-onyx-001") {
     try {
+        if (isPending) {
+            // For pending items (ExtractedInformation), we just delete the extraction
+            // and optionally update the document status if needed.
+            // Since ExtractedInformation is cascade deleted with Document often, 
+            // or we might want to keep the Document but just remove the Extraction.
+            // For now, let's delete the ExtractedInformation.
+
+            // Get the extraction first to see if we need to update Document status
+            const extraction = await db.extractedInformation.findUnique({
+                where: { id: originalId },
+                include: { document: true }
+            });
+
+            if (extraction) {
+                // Delete extraction
+                await db.extractedInformation.delete({
+                    where: { id: originalId }
+                });
+
+                // Update document to FAILED so it doesn't show up again as pending
+                await db.document.update({
+                    where: { id: extraction.documentId },
+                    data: { status: "FAILED" }
+                });
+            }
+
+            revalidatePath("/ledger");
+            return { success: true };
+        }
+
         // Finding original ledger line to get the Journal Entry and details
         const originalLine = await db.ledgerLine.findUnique({
             where: { id: originalId },

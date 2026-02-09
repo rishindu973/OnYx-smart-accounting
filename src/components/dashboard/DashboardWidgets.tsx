@@ -68,6 +68,12 @@ useEffect(() => {
 }, []);
 
 
+<<<<<<< Updated upstream
+=======
+    // Initial fetch
+    run();
+  }, [newTransactionCount]);
+>>>>>>> Stashed changes
 
   if (loading) return <div className="p-6">Loading dashboard...</div>;
 

@@ -178,23 +178,23 @@ export async function getDashboardMetrics(companyId?: string): Promise<Dashboard
 
   // 5) Reversals today + reversal amount (BASED ON createdAt)
   const reversalsToday = await db.journalEntry.count({
-  where: {
-    ...whereCompany,
-    createdAt: { gte: todayStart, lte: todayEnd },
-    OR: [{ entryType: "REVERSAL" }, { reversalOfId: { not: null } }],
-  },
-});
-
-  const reversalLedgerAgg = await db.ledgerLine.aggregate({
-  _sum: { debit: true, credit: true },
-  where: {
-    journalEntry: {
+    where: {
       ...whereCompany,
       createdAt: { gte: todayStart, lte: todayEnd },
       OR: [{ entryType: "REVERSAL" }, { reversalOfId: { not: null } }],
     },
-  },
-});
+  });
+
+  const reversalLedgerAgg = await db.ledgerLine.aggregate({
+    _sum: { debit: true, credit: true },
+    where: {
+      journalEntry: {
+        ...whereCompany,
+        createdAt: { gte: todayStart, lte: todayEnd },
+        OR: [{ entryType: "REVERSAL" }, { reversalOfId: { not: null } }],
+      },
+    },
+  });
 
   const revDebit = Number(reversalLedgerAgg._sum.debit ?? 0);
   const revCredit = Number(reversalLedgerAgg._sum.credit ?? 0);
@@ -302,16 +302,34 @@ export async function getDashboardMetrics(companyId?: string): Promise<Dashboard
     where: { ...whereCompany },
     orderBy: { createdAt: "desc" },
     take: 5,
-    select: { id: true, description: true, createdAt: true, sourceType: true },
+    select: {
+      id: true,
+      description: true,
+      createdAt: true,
+      sourceType: true,
+      ledgerLines: {
+        select: {
+          debit: true,
+          credit: true,
+        },
+      },
+    },
   });
 
-  const recentActivity: RecentActivityItem[] = entries.map((e) => ({
-    id: e.id,
-    title: e.description ?? "Journal Entry",
-    amount: 0,
-    source: e.sourceType,
-    time: e.createdAt.toISOString(),
-  }));
+  const recentActivity: RecentActivityItem[] = entries.map((e) => {
+    // Sum debits or credits to get transaction value
+    const totalDebit = e.ledgerLines.reduce((sum, line) => sum + Number(line.debit), 0);
+    const totalCredit = e.ledgerLines.reduce((sum, line) => sum + Number(line.credit), 0);
+    const amount = Math.max(totalDebit, totalCredit);
+
+    return {
+      id: e.id,
+      title: e.description ?? "Journal Entry",
+      amount: amount,
+      source: e.sourceType,
+      time: e.createdAt.toISOString(),
+    };
+  });
 
   return {
     companyName,

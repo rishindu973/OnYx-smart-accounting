@@ -11,7 +11,7 @@ interface LedgerContextType {
     addTransaction: (transaction: LedgerEntry) => Promise<void>;
     setTransactions: (transactions: LedgerEntry[]) => void;
     recordNewTransaction: (description: string, amount: number, isDebit: boolean) => void;
-    voidTransaction: (id: string) => Promise<void>; // Added voidTransaction
+    voidTransaction: (id: string, isPending?: boolean) => Promise<void>; // Added voidTransaction
     clearNotifications: () => void;
     totals: {
         debit: number;
@@ -74,7 +74,7 @@ export const LedgerProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
-    const voidTransaction = async (id: string) => {
+    const voidTransaction = async (id: string, isPending: boolean = false) => {
         // Optimistic update logic
         // We find the transaction to be reversed
         const originalEntry = transactions.find(t => t.id === id);
@@ -82,16 +82,22 @@ export const LedgerProvider = ({ children }: { children: ReactNode }) => {
 
         try {
             const { voidTransaction: voidTx } = await import("@/lib/actions/ledger");
-            const result = await voidTx(id);
+            const result = await voidTx(id, isPending);
 
             if (result && result.success) {
                 setNewTransactionCount((prev) => prev + 1);
-                setNotifications(prev => [`Transaction voided: ${id}`, ...prev]);
+                setNotifications(prev => [`Transaction ${isPending ? 'removed' : 'voided'}: ${id}`, ...prev]);
 
                 toast({
-                    title: "Transaction Voided",
-                    description: "Reversal entry created successfully.",
+                    title: isPending ? "Transaction Removed" : "Transaction Voided",
+                    description: isPending ? "Pending item removed." : "Reversal entry created successfully.",
                 });
+
+                // If it was pending, we might want to remove it from state immediately if not handled by revalidation
+                if (isPending) {
+                    setTransactionsState(prev => prev.filter(t => t.id !== id));
+                }
+
             } else {
                 throw new Error(result?.error || "Unknown error");
             }
