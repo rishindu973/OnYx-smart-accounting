@@ -36,8 +36,8 @@ export async function POST(request: Request) {
             }, { status: 502 });
     }
     const predictions = data.result[0].prediction; // Extract the predictions from the response
-
     const extracted: Record<string, any> = {}; // Initialize an object to hold the extracted data
+    
     predictions.forEach((p: any) => {
         const label = p.label.toLowerCase();
         if (label === 'payee_name' || label === 'payto_name' || label === 'buyer_name') {
@@ -119,21 +119,25 @@ export async function POST(request: Request) {
     if (!ocrName || ocrName === "Review Required") return { isNew: true, accountId: null };
 
     // Fetch from your database
-    const knownVendors = await prisma.vendorMapping.findMany();
-    
-    const fuse = new Fuse(knownVendors, {
-        keys: ['vendor_name'],
-        threshold: 0.4,
-    });
+    try {
+        const knownVendors = await prisma.vendorMapping.findMany();
+        
+        const fuse = new Fuse(knownVendors, {
+            keys: ['vendorName'], // CamelCase to match Prisma schema
+            threshold: 0.4,
+        });
 
-    const result = fuse.search(ocrName);
+        const result = fuse.search(ocrName);
 
-    if (result.length > 0) {
-        return {
-            isNew: false,
-            accountId: result[0].item.defaultDebitAccountId,
-            matchedName: result[0].item.vendorName
-        };
+        if (result.length > 0) {
+            return {
+                isNew: false,
+                accountId: result[0].item.defaultDebitAccountId, // CamelCase mapping
+                matchedName: result[0].item.vendorName
+            };
+        }
+    } catch (error) {
+        console.error("Normalization Error:", error);
     }
     return { isNew: true, accountId: null };
 }
