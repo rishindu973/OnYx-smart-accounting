@@ -13,6 +13,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 
+
 type DashboardHeaderData = {
   companyName?: string;
 };
@@ -70,6 +71,7 @@ const DashboardHeader = () => {
           </span>
         </Button>
 
+        {/* This button logic now waits for 'mounted' to be true */}
         <Button
           variant="ghost"
           size="icon"
@@ -83,11 +85,11 @@ const DashboardHeader = () => {
             <Moon className="w-5 h-5" />
           ))}
         </Button>
-
+        
         <Button variant="ghost" size="icon">
           <Settings className="w-5 h-5" />
         </Button>
-
+        
         <div className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center">
           <span className="text-sm font-medium text-primary">JD</span>
         </div>
