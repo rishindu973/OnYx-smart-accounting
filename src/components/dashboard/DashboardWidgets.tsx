@@ -37,43 +37,35 @@ const DashboardWidgets = () => {
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-useEffect(() => {
-  let alive = true;
+  useEffect(() => {
+    let alive = true;
 
-  const load = async () => {
-    try {
-      setErrorMsg(null);
-      const res = await fetch("/api/dashboard", { cache: "no-store" });
-      if (!res.ok) throw new Error(`Failed to load dashboard: ${res.status}`);
-      const data = (await res.json()) as DashboardMetrics;
-      if (alive) setMetrics(data);
-    } catch (e) {
-      console.error(e);
-      if (alive) {
-        setMetrics(null);
-        setErrorMsg("Could not load dashboard data.");
+    const load = async () => {
+      try {
+        setErrorMsg(null);
+        const res = await fetch("/api/dashboard", { cache: "no-store" });
+        if (!res.ok) throw new Error(`Failed to load dashboard: ${res.status}`);
+        const data = (await res.json()) as DashboardMetrics;
+        if (alive) setMetrics(data);
+      } catch (e) {
+        console.error(e);
+        if (alive) {
+          setMetrics(null);
+          setErrorMsg("Could not load dashboard data.");
+        }
+      } finally {
+        if (alive) setLoading(false);
       }
-    } finally {
-      if (alive) setLoading(false);
-    }
-  };
+    };
 
-  load();
-  const timer = setInterval(load, 5000); // refresh every 5s
+    load();
+    const timer = setInterval(load, 5000); // refresh every 5s
 
-  return () => {
-    alive = false;
-    clearInterval(timer);
-  };
-}, []);
-
-
-<<<<<<< Updated upstream
-=======
-    // Initial fetch
-    run();
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
   }, [newTransactionCount]);
->>>>>>> Stashed changes
 
   if (loading) return <div className="p-6">Loading dashboard...</div>;
 
