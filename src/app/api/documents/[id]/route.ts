@@ -3,11 +3,15 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET(
   _req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    
+    const { id } = await params;
+
+    
     const doc = await prisma.document.findUnique({
-      where: { id: params.id },
+      where: { id: id },
       include: {
         extraction: true,
         journalEntry: true,
@@ -23,4 +27,3 @@ export async function GET(
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
-
