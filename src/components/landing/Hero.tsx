@@ -14,7 +14,7 @@ const Hero = () => {
           <div className="space-y-8">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20">
               <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
-              <span className="text-sm text-muted-foreground">SOC 2 Type II Certified</span>
+              <span className="text-sm text-muted-foreground">SOC 2 Type II Ready</span>
             </div>
             
             <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold leading-tight">
@@ -40,17 +40,17 @@ const Hero = () => {
             
             <div className="flex items-center gap-8 pt-4">
               <div className="text-center">
-                <div className="text-3xl font-bold text-primary">99.7%</div>
+                <div className="text-3xl font-bold text-primary">94.2%</div>
                 <div className="text-sm text-muted-foreground">Extraction Accuracy</div>
               </div>
               <div className="w-px h-12 bg-border" />
               <div className="text-center">
-                <div className="text-3xl font-bold text-primary">$2.4B</div>
+                <div className="text-3xl font-bold text-primary">$12M</div>
                 <div className="text-sm text-muted-foreground">Transactions Processed</div>
               </div>
               <div className="w-px h-12 bg-border" />
               <div className="text-center">
-                <div className="text-3xl font-bold text-primary">500+</div>
+                <div className="text-3xl font-bold text-primary">12+</div>
                 <div className="text-sm text-muted-foreground">Enterprise Clients</div>
               </div>
             </div>

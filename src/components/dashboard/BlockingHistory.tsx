@@ -1,3 +1,4 @@
+"use client";
 import { format } from "date-fns";
 import { ShieldX, AlertTriangle, Clock, DollarSign, User } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

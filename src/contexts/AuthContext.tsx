@@ -27,7 +27,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const router = useRouter();
 
   useEffect(() => {
-    
+    // Simulate an active session on load for frontend testing
+    setUser({
+      id: "test-user-123",
+      email: "developer@onyx.local",
+      full_name: "Developer Mode"
+    });
     setLoading(false);
   }, []);
 
