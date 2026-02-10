@@ -89,6 +89,7 @@ const UploadFiles = () => {
   try {
     const formData = new FormData();
     formData.append("file", uploadedFile.file);
+    const permanentUrl = `https://onyx-vault.storage.com/files/${uploadedFile.id}-${uploadedFile.file.name}`;
 
     // Call verified backend route
     const response = await fetch("/api/ocr", {
@@ -109,6 +110,7 @@ const UploadFiles = () => {
     //Redirect to the transaction review page with the data
     sessionStorage.setItem("last_scanned_doc", JSON.stringify(result));
     sessionStorage.setItem("last_scanned_image", previewUrl);
+    sessionStorage.setItem("last_scanned_image_permanent", permanentUrl);
     setTimeout(() => router.push("/transactions"), 1500);
 
   } catch (error) {
