@@ -21,6 +21,7 @@ type DashboardHeaderData = {
 const DashboardHeader = () => {
   const currentDate = format(new Date(), "EEEE, MMMM d, yyyy");
   const { theme, toggleTheme } = useTheme();
+  const { newTransactionCount, notifications, clearNotifications } = useLedger();
 
   const [mounted, setMounted] = useState(false);
   const [companyName, setCompanyName] = useState("Company");
@@ -64,12 +65,28 @@ const DashboardHeader = () => {
           />
         </div>
 
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="w-5 h-5" />
+        {mounted ? (
+  <Popover>
+    <PopoverTrigger asChild>
+      <Button variant="ghost" size="icon" className="relative">
+        <Bell className="w-5 h-5" />
+        {newTransactionCount > 0 && (
           <span className="absolute -top-1 -right-1 w-4 h-4 bg-destructive rounded-full text-xs flex items-center justify-center text-destructive-foreground">
-            3
+            {newTransactionCount}
           </span>
-        </Button>
+        )}
+      </Button>
+    </PopoverTrigger>
+    <PopoverContent className="w-80" align="end">
+      {/* ... notification content ... */}
+    </PopoverContent>
+  </Popover>
+) : (
+  /* Fallback button that looks the same but has no Popover logic yet */
+  <Button variant="ghost" size="icon" className="relative">
+    <Bell className="w-5 h-5" />
+  </Button>
+)}
 
         {/* This button logic now waits for 'mounted' to be true */}
         <Button
@@ -85,11 +102,11 @@ const DashboardHeader = () => {
             <Moon className="w-5 h-5" />
           ))}
         </Button>
-        
+
         <Button variant="ghost" size="icon">
           <Settings className="w-5 h-5" />
         </Button>
-        
+
         <div className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center">
           <span className="text-sm font-medium text-primary">JD</span>
         </div>

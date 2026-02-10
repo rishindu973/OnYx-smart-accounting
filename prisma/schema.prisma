@@ -72,6 +72,7 @@ enum AccountType{
 //document and ai drafted flags
 model Document{
   id                String     @id @default(cuid())
+  createdAt         DateTime   @default(now()) @map("created_at")
   companyId         String
   company           Company    @relation(fields: [companyId], references: [id])
   fileUrl           String?    @map("file_url")
@@ -156,9 +157,25 @@ model DailyLimit{
   date             DateTime
   maxAmount        Decimal          @default(0) @map("max_amount") @db.Decimal(15,2)
   currentSpend     Decimal          @default(0) @map("current_spend") @db.Decimal(15,2)
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
   
+  audits       DailyLimitAudit[]
+
   @@unique([companyId, date])
 }
+
+model DailyLimitAudit {
+  id           String     @id @default(cuid())
+  dailyLimitId String     @map("daily_limit_id")
+  dailyLimit   DailyLimit @relation(fields: [dailyLimitId], references: [id])
+  oldMaxAmount Decimal?   @map("old_max_amount") @db.Decimal(15, 2)
+  newMaxAmount Decimal    @map("new_max_amount") @db.Decimal(15, 2)
+  reason       String?
+  changedBy    String?    @map("changed_by")
+  changedAt    DateTime   @default(now()) @map("changed_at")
+}
+
 
 //vendor mapping to match naming conventions(suggestion memory)
 model VendorMapping{

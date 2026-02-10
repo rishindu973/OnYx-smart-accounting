@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { UniversalDocument } from "@/types/accounting";
 import { DocType } from "@prisma/client";
+import { revalidatePath } from "next/cache";
 
 export async function saveScannedDocument(data: UniversalDocument, companyId: string, fileUrl: string) {
 
@@ -12,7 +13,7 @@ export async function saveScannedDocument(data: UniversalDocument, companyId: st
         companyId: companyId,
         type: data.metadata.type === "CHEQUE" ? DocType.Cheque : DocType.Invoice,
         
-        status: "PENDING",
+        status: "PROCESSED",
         fileUrl: fileUrl,
         extraction: {
           create: {
@@ -26,7 +27,7 @@ export async function saveScannedDocument(data: UniversalDocument, companyId: st
       },
       include: { extraction: true }
     });
-
+    revalidatePath("/transactions");
     return { success: true, id: newDoc.id };
   } catch (error) {
     console.error("Onyx Database Error:", error);

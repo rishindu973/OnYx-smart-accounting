@@ -1,17 +1,7 @@
 import { db } from "../lib/db";
 import type { DashboardMetrics, PendingReviewItem, RecentActivityItem } from "../types/dashboard";
 
-function startOfDay(d = new Date()) {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x;
-}
-
-function endOfDay(d = new Date()) {
-  const x = new Date(d);
-  x.setHours(23, 59, 59, 999);
-  return x;
-}
+const DEFAULT_TZ = "Asia/Colombo";
 
 /**
  * Prisma JSON fields are typed as JsonValue:
@@ -23,93 +13,129 @@ function asObject(value: unknown): Record<string, any> | null {
   return value as Record<string, any>;
 }
 
-function extractConfidenceAvg(confidenceScores: unknown): number | null {
-  // Expected shape: confidenceScores.intelligence.confidence_score = { field: number, ... }
-  const root = asObject(confidenceScores);
-  const intelligence = asObject(root?.intelligence);
-  const conf = asObject(intelligence?.confidence_score);
-  if (!conf) return null;
+/**
+ * Returns UTC instants for the start/end of the given calendar day
+ * in the provided IANA timezone.
+ */
+function dayBoundsInTZ(timeZone: string, baseDate = new Date()) {
+  // ✅ Create a new date instance for the start of the day
+  const start = new Date(baseDate);
+  start.setHours(0, 0, 0, 0); 
 
-  const values = Object.values(conf).filter((v) => typeof v === "number") as number[];
+  // ✅ Create a new date instance for the end of the day
+  const end = new Date(baseDate);
+  end.setHours(23, 59, 59, 999); 
+
+  return { start, end };
+}
+
+function tzWallClockToInstant(wallClockUTC: Date, timeZone: string) {
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour12: false,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+
+  const parts = dtf.formatToParts(wallClockUTC);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value);
+
+  return new Date(
+    Date.UTC(
+      get("year"),
+      get("month") - 1,
+      get("day"),
+      get("hour"),
+      get("minute"),
+      get("second"),
+      wallClockUTC.getUTCMilliseconds()
+    )
+  );
+}
+
+function extractConfidenceAvg(confidenceScores: unknown): number | null {
+
+  const root = asObject(confidenceScores);
+  if (!root) return null;
+
+  const nested = asObject(asObject(root.intelligence)?.confidence_score);
+  const conf = nested ?? root;
+
+  const values = Object.values(conf)
+    .map((v) => (typeof v === "string" ? Number(v) : v))
+    .filter((v) => typeof v === "number" && !Number.isNaN(v)) as number[];
+
   if (values.length === 0) return null;
 
   const avg = values.reduce((a, b) => a + b, 0) / values.length;
 
-  // detect if 0-1 -> convert to 0-100
+  // If 0..1 → scale to 0..100
   const scaled = avg <= 1 ? avg * 100 : avg;
 
-  return Math.round(scaled * 10) / 10; // 1 decimal place
+  return Math.round(scaled * 10) / 10; // 1 decimal
 }
+
 
 export async function getDashboardMetrics(companyId?: string): Promise<DashboardMetrics> {
   // If auth isn't implemented yet, pick the first company
-  const company =
-    companyId
-      ? await db.company.findUnique({ where: { id: companyId } })
-      : await db.company.findFirst();
+  const company = companyId
+    ? await db.company.findUnique({ where: { id: companyId } })
+    : await db.company.findFirst();
 
   const resolvedCompanyId = company?.id;
   const companyName = company?.name ?? "Company";
   const whereCompany = resolvedCompanyId ? { companyId: resolvedCompanyId } : {};
 
-  const todayStart = startOfDay();
-  const todayEnd = endOfDay();
+  // ✅ "Today" = PROCESSED/CREATED today (not entryDate)
+  const tz = process.env.DASHBOARD_TZ || DEFAULT_TZ;
+  const { start: todayStart, end: todayEnd } = dayBoundsInTZ(tz);
 
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
-  const yStart = startOfDay(yesterday);
-  const yEnd = endOfDay(yesterday);
+  const { start: yStart, end: yEnd } = dayBoundsInTZ(tz, yesterday);
 
-  // 1) Transactions + growth
-  const [todaysTransactions, yesterdaysTransactions] = await Promise.all([
-    db.journalEntry.count({
-      where: { ...whereCompany, entryDate: { gte: todayStart, lte: todayEnd } },
-    }),
-    db.journalEntry.count({
-      where: { ...whereCompany, entryDate: { gte: yStart, lte: yEnd } },
-    }),
-  ]);
+  // 1) Transactions + growth (BASED ON createdAt of the Document)
+const [todaysTransactions, yesterdaysTransactions] = await Promise.all([
+  db.document.count({
+    where: { ...whereCompany, createdAt: { gte: todayStart, lte: todayEnd } },
+  }),
+  db.document.count({
+    where: { ...whereCompany, createdAt: { gte: yStart, lte: yEnd } },
+  }),
+]);
 
-  const transactionsGrowthPct =
-    yesterdaysTransactions === 0
-      ? todaysTransactions > 0
-        ? 100
-        : 0
-      : Math.round(((todaysTransactions - yesterdaysTransactions) / yesterdaysTransactions) * 100);
-
-  // 2) Processed amount today from LedgerLines tied to today's journal entries
-  const ledgerAgg = await db.ledgerLine.aggregate({
-    _sum: { debit: true, credit: true },
-    where: {
-      journalEntry: { ...whereCompany, entryDate: { gte: todayStart, lte: todayEnd } },
+const transactionsGrowthPct =
+  yesterdaysTransactions === 0
+    ? todaysTransactions > 0 ? 100 : 0
+    : Math.round(((todaysTransactions - yesterdaysTransactions) / yesterdaysTransactions) * 100);
+  
+  // 2) Processed amount today (Based on Extracted totalAmount)
+const extractionAgg = await db.extractedInformation.aggregate({
+  _sum: { totalAmount: true },
+  where: {
+    document: { 
+      ...whereCompany, 
+      createdAt: { gte: todayStart, lte: todayEnd } 
     },
-  });
+  },
+});
+const processedAmount = Number(extractionAgg._sum.totalAmount ?? 0);
 
-  const totalDebit = Number(ledgerAgg._sum.debit ?? 0);
-  const totalCredit = Number(ledgerAgg._sum.credit ?? 0);
+// 3) PROCESSED vs PENDING docs created today
+const [processed, pending] = await Promise.all([
+  db.document.count({ 
+    where: { ...whereCompany, status: "PROCESSED", createdAt: { gte: todayStart, lte: todayEnd } } 
+  }),
+  db.document.count({ 
+    where: { ...whereCompany, status: "PENDING", createdAt: { gte: todayStart, lte: todayEnd } } 
+  }),
+]);
 
-  // Balanced journal -> net processed = average of totals
-  const processedAmount = Math.round(((totalDebit + totalCredit) / 2) * 100) / 100;
-
-  // 3) PROCESSED vs PENDING docs (linked to today's journal entries)
-  const todaysDocIds = await db.journalEntry.findMany({
-    where: { ...whereCompany, entryDate: { gte: todayStart, lte: todayEnd } },
-    select: { documentId: true },
-  });
-
-  const docIds = todaysDocIds.map((x) => x.documentId).filter(Boolean) as string[];
-
-  let processed = 0;
-  let pending = 0;
-
-  if (docIds.length > 0) {
-    [processed, pending] = await Promise.all([
-      db.document.count({ where: { id: { in: docIds }, status: "PROCESSED" } }),
-      db.document.count({ where: { id: { in: docIds }, status: "PENDING" } }),
-    ]);
-  }
-
-  // 4) AI Confidence Avg from ExtractedInformation.confidenceScores JSON
+  // 4) AI Confidence Avg (overall for company)
   let aiConfidenceAvg = 0;
 
   if (resolvedCompanyId) {
@@ -130,36 +156,36 @@ export async function getDashboardMetrics(companyId?: string): Promise<Dashboard
     }
   }
 
-  // 5) Reversals today + reversal amount
+  // 5) Reversals today + reversal amount (BASED ON createdAt)
   const reversalsToday = await db.journalEntry.count({
-    where: {
-      ...whereCompany,
-      entryType: "REVERSAL",
-      entryDate: { gte: todayStart, lte: todayEnd },
-    },
-  });
+  where: {
+    ...whereCompany,
+    createdAt: { gte: todayStart, lte: todayEnd },
+    OR: [{ entryType: "REVERSAL" }, { reversalOfId: { not: null } }],
+  },
+});
 
   const reversalLedgerAgg = await db.ledgerLine.aggregate({
-    _sum: { debit: true, credit: true },
-    where: {
-      journalEntry: {
-        ...whereCompany,
-        entryType: "REVERSAL",
-        entryDate: { gte: todayStart, lte: todayEnd },
-      },
+  _sum: { debit: true, credit: true },
+  where: {
+    journalEntry: {
+      ...whereCompany,
+      createdAt: { gte: todayStart, lte: todayEnd },
+      OR: [{ entryType: "REVERSAL" }, { reversalOfId: { not: null } }],
     },
-  });
+  },
+});
 
   const revDebit = Number(reversalLedgerAgg._sum.debit ?? 0);
   const revCredit = Number(reversalLedgerAgg._sum.credit ?? 0);
   const reversalsAmount = Math.round(((revDebit + revCredit) / 2) * 100) / 100;
 
-  // 6) Daily limit
+  // 6) Daily limit (if DailyLimit exists for today, use it; else fallback to base + processedAmount)
   const baseLimit = Number(company?.dailyLimitBase ?? 50000);
 
   let dailyLimit = {
     limit: baseLimit,
-    used: processedAmount,
+    used: processedAmount, // processed today (created today)
     remaining: Math.max(0, baseLimit - processedAmount),
     percent: baseLimit > 0 ? Math.round((processedAmount / baseLimit) * 100) : 0,
   };
@@ -251,22 +277,29 @@ export async function getDashboardMetrics(companyId?: string): Promise<Dashboard
 
   const pendingReviewCount = pendingReviewItems.length;
 
-  // 8) Recent activity
-  const entries = await db.journalEntry.findMany({
-    where: { ...whereCompany },
-    orderBy: { entryDate: "desc" },
-    take: 5,
-    select: { id: true, description: true, entryDate: true, sourceType: true },
-  });
+  // 8) Recent activity = most recently created entries (processing timeline)
+  const entries = await db.document.findMany({
+  where: { ...whereCompany },
+  orderBy: { createdAt: "desc" },
+  take: 10,
+  include: {
+    extraction: true
+  },
+});
 
-  const recentActivity: RecentActivityItem[] = entries.map((e) => ({
+// ✅ Fix: Ensure 'data' is defined inside the map and structure matches RecentActivityItem
+const recentActivity: RecentActivityItem[] = entries.map((e) => {
+  const data = e.extraction?.extractedData as any; // ✅ This fixes "Cannot find name 'data'"
+
+  return {
     id: e.id,
-    title: e.description ?? "Journal Entry",
-    amount: 0,
-    source: e.sourceType,
-    time: e.entryDate.toISOString(),
-  }));
-
+    // ✅ Matches Ledger naming logic
+    title: data?.vendor_name || data?.payee_name || "Pending Extraction",
+    amount: Number(e.extraction?.totalAmount ?? 0),
+    source: e.extraction?.isManual ? "USER_INPUT" : "AI_SCAN",
+    time: e.createdAt.toISOString(),
+  };
+});
   return {
     companyName,
 
