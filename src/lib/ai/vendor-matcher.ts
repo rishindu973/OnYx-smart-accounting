@@ -1,195 +1,9 @@
-// import Fuse from "fuse.js";
-// import { prisma } from "@/lib/prisma"; // Singleton instance
-// import { GoogleGenerativeAI } from "@google/generative-ai";
-// import { db } from "../db"; // Used for specific historical queries
-
-// // Initialize Gemini [cite: 175]
-// const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-// // Use flash model for speed during the hackathon demo
-// const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-// interface VendorMatchResult {
-//     suggestion_account_id: string | null;
-//     is_new_vendor: boolean;
-//     suggested_account_name?: string;
-//     confidence?: number;
-//     potential_match?: string;
-// }
-
-// /**
-//  * Enhanced Vendor Matcher for OnYx
-//  * Combines Database Mappings, Historical Patterns, Fuzzy Logic, and Gemini AI.
-//  */
-// export async function matchVendor(
-//     vendorName: string,
-//     companyId: string = "clx-onyx-001"
-// ): Promise<VendorMatchResult> {
-
-//     if (!vendorName || vendorName === "Review Required") {
-//         return { suggestion_account_id: null, is_new_vendor: true };
-//     }
-
-//     const trimmedVendorName = vendorName.trim();
-
-//     try {
-//        // TIER 1: Exact Match in Vendor Mappings Table [cite: 178, 179]
-//         const existingMapping = await prisma.vendorMapping.findFirst({
-//             where: { 
-//                 companyId, 
-//                 vendorName: { equals: trimmedVendorName, mode: 'insensitive' } 
-//             },
-//         });
-
-//         if (existingMapping) {
-//             return {
-//                 suggestion_account_id: existingMapping.defaultDebitAccountId,
-//                 is_new_vendor: false,
-//                 confidence: 1.0
-//             };
-//         }
-
-//         // TIER 2: Historical Transaction Lookup
-//         // Check how this specific payee name was handled in the last 5 transactions
-//         const historicalDocs = await db.extractedInformation.findMany({
-//             where: {
-//                 extractedData: { path: ['payee_name'], equals: trimmedVendorName },
-//                 document: { companyId }
-//             },
-//             include: {
-//                 document: { include: { journalEntry: { include: { ledgerLines: true } } } }
-//             },
-//             orderBy: { id: 'desc' },
-//             take: 5
-//         });
-
-//         if (historicalDocs.length > 0) {
-//             const accountCounts: Record<string, number> = {};
-//             historicalDocs.forEach(info => {
-//                 const journalEntry = info.document.journalEntry[0];
-//                 journalEntry?.ledgerLines.forEach(line => {
-//                     if (Number(line.debit) > 0) {
-//                         accountCounts[line.accountId] = (accountCounts[line.accountId] || 0) + 1;
-//                     }
-//                 });
-//             });
-
-//             let bestHistoricalAccount = null;
-//             let maxCount = 0;
-//             for (const [accId, count] of Object.entries(accountCounts)) {
-//                 if (count > maxCount) {
-//                     maxCount = count;
-//                     bestHistoricalAccount = accId;
-//                 }
-//             }
-
-//             if (bestHistoricalAccount) {
-//                 return {
-//                     suggestion_account_id: bestHistoricalAccount,
-//                     is_new_vendor: false,
-//                     confidence: 0.9
-//                 };
-//             }
-//         }
-
-//         // TIER 3: Fuzzy Matching (Levenshtein & Fuse.js)
-//         const knownVendors = await prisma.vendorMapping.findMany({ where: { companyId } });
-//         const fuse = new Fuse(knownVendors, { keys: ['vendorName'], threshold: 0.3 });
-//         const fuzzyResult = fuse.search(trimmedVendorName);
-
-//         if (fuzzyResult.length > 0) {
-//             return {
-//                 suggestion_account_id: fuzzyResult[0].item.defaultDebitAccountId,
-//                 is_new_vendor: false,
-//                 potential_match: fuzzyResult[0].item.vendorName,
-//                 confidence: 0.85
-//             };
-//         }
-
-//         // Tier 3.5: Typo detection via Levenshtein fallback
-//         // Useful for when the database name and OCR name have 1-2 char differences
-//         const recentDocs = await db.extractedInformation.findMany({
-//             where: { document: { companyId } },
-//             select: { extractedData: true },
-//             take: 50
-//         });
-
-//         for (const doc of recentDocs) {
-//             const name = (doc.extractedData as any)?.payee_name;
-//             if (name && levenshteinDistance(trimmedVendorName.toLowerCase(), name.toLowerCase()) <= 2) {
-//                 return {
-//                     suggestion_account_id: null,
-//                     is_new_vendor: true, // Still marked as new to trigger the "Did you mean" UI
-//                     potential_match: name,
-//                     confidence: 0.7
-//                 };
-//             }
-//         }
-
-//         // TIER 4: AI Logic (Zero-Click Provisioning) [cite: 183-188]
-//         const companyAccounts = await prisma.chartOfAccounts.findMany({
-//             where: { companyId },
-//             select: { id: true, name: true, type: true },
-//         });
-
-//         const aiPrompt = `
-//             You are an expert accountant for OnYx.
-//             Vendor from OCR: "${trimmedVendorName}"
-//             Available Chart of Accounts: ${JSON.stringify(companyAccounts)}
-            
-//             Task:
-//             1. Map this vendor to the most likely account ID.
-//             2. If no match exists, suggest a standard accounting category (e.g., "Utilities").
-//             3. Return ONLY valid JSON:
-//             {
-//                 "matched_account_id": "string | null",
-//                 "suggested_account_name": "string",
-//                 "confidence": number (0-1)
-//             }
-//         `;
-
-//         const result = await model.generateContent(aiPrompt);
-//         const aiData = JSON.parse(result.response.text().replace(/```json/g, "").replace(/```/g, "").trim());
-
-//         return {
-//             suggestion_account_id: aiData.matched_account_id || null,
-//             is_new_vendor: true, // Reaching this stage means it's a new vendor for our ledger
-//             suggested_account_name: aiData.suggested_account_name,
-//             confidence: aiData.confidence,
-//         };
-
-//     } catch (error) {
-//         console.error("Critical Vendor Match Failure:", error);
-//         return { suggestion_account_id: null, is_new_vendor: true };
-//     }
-// }
-
-// // ✅ HELPER: Levenshtein Distance for Typo Detection
-// function levenshteinDistance(a: string, b: string): number {
-//     const matrix = [];
-//     for (let i = 0; i <= b.length; i++) matrix[i] = [i];
-//     for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
-
-//     for (let i = 1; i <= b.length; i++) {
-//         for (let j = 1; j <= a.length; j++) {
-//             if (b.charAt(i - 1) === a.charAt(j - 1)) {
-//                 matrix[i][j] = matrix[i - 1][j - 1];
-//             } else {
-//                 matrix[i][j] = Math.min(
-//                     matrix[i - 1][j - 1] + 1,
-//                     Math.min(matrix[i][j - 1] + 1, matrix[i - 1][j] + 1)
-//                 );
-//             }
-//         }
-//     }
-//     return matrix[b.length][a.length];
-// }
-import Fuse from "fuse.js";
-import { prisma } from "@/lib/prisma";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { db } from "../db";
 
+// Initialize Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
 
 interface VendorMatchResult {
     suggestion_account_id: string | null;
@@ -203,67 +17,259 @@ export async function matchVendor(
     vendorName: string,
     companyId: string
 ): Promise<VendorMatchResult> {
+
     if (!vendorName || vendorName === "Review Required") {
-        return { suggestion_account_id: null, is_new_vendor: true };
+        return {
+            suggestion_account_id: null,
+            is_new_vendor: true,
+        };
     }
 
     const trimmedVendorName = vendorName.trim();
 
-    try {
-       
-        const existingMapping = await db.vendorMapping.findUnique({
-            where: { companyId_vendorName: { companyId, vendorName: trimmedVendorName } },
-        });
-        if (existingMapping) return { suggestion_account_id: existingMapping.defaultDebitAccountId, is_new_vendor: false };
+    // 1. Check Existing Vendor Mappings
+    const existingMapping = await db.vendorMapping.findUnique({
+        where: {
+            companyId_vendorName: {
+                companyId,
+                vendorName: trimmedVendorName,
+            },
+        },
+    });
 
+    if (existingMapping) {
+        return {
+            suggestion_account_id: existingMapping.defaultDebitAccountId,
+            is_new_vendor: false,
+        };
+    }
+
+    let knownVendor = false;
+    let historicalAccount = null;
+
+    // 1.5. Check Historical Data (Strict Match)
+    try {
+        // Fetch recent documents with this payee name
         const historicalDocs = await db.extractedInformation.findMany({
             where: {
-                extractedData: { path: ['payee_name'], equals: trimmedVendorName },
-                document: { companyId }
+                extractedData: {
+                    path: ['payee_name'],
+                    equals: trimmedVendorName
+                },
+                document: {
+                    companyId: companyId
+                }
             },
-            include: { document: { include: { journalEntry: { include: { ledgerLines: true } } } } },
-            orderBy: { id: 'desc' },
+            include: {
+                document: {
+                    include: {
+                        journalEntry: {
+                            include: {
+                                ledgerLines: true
+                            }
+                        }
+                    }
+                }
+            },
+            orderBy: {
+                id: 'desc'
+            },
             take: 5
         });
 
         if (historicalDocs.length > 0) {
+            knownVendor = true; // Vendor exists in DB
+
+            // Analyze accounts...
             const accountCounts: Record<string, number> = {};
-            historicalDocs.forEach(info => {
-                info.document.journalEntry[0]?.ledgerLines.forEach(line => {
-                    if (Number(line.debit) > 0) accountCounts[line.accountId] = (accountCounts[line.accountId] || 0) + 1;
-                });
+            for (const info of historicalDocs) {
+                const journalEntry = info.document.journalEntry[0];
+                if (journalEntry && journalEntry.ledgerLines) {
+                    for (const line of journalEntry.ledgerLines) {
+                        if (Number(line.debit) > 0) {
+                            accountCounts[line.accountId] = (accountCounts[line.accountId] || 0) + 1;
+                        }
+                    }
+                }
+            }
+
+            let maxCount = 0;
+            for (const [accId, count] of Object.entries(accountCounts)) {
+                if (count > maxCount) {
+                    maxCount = count;
+                    historicalAccount = accId;
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Historical lookup failed:", e);
+    }
+
+    if (historicalAccount) {
+        return {
+            suggestion_account_id: historicalAccount,
+            is_new_vendor: false,
+            confidence: 0.9
+        };
+    }
+
+    // 1.6. Fuzzy Match (If no exact match found)
+    // Fetch a batch of recent unique vendor names is ideal, but for now fetch recent docs
+    let potentialMatchName: string | undefined;
+
+    try {
+        const recentDocs = await db.extractedInformation.findMany({
+            where: {
+                document: { companyId: companyId }
+            },
+            select: {
+                extractedData: true
+            },
+            orderBy: { id: 'desc' },
+            take: 100 // Check last 100 documents
+        });
+
+        const candidates = new Set<string>();
+        for (const doc of recentDocs) {
+            const name = (doc.extractedData as any)?.payee_name;
+            if (name && typeof name === 'string' && name.length > 2) {
+                candidates.add(name);
+            }
+        }
+
+        for (const candidate of candidates) {
+            // Simple Distance Check
+            const dist = levenshteinDistance(trimmedVendorName.toLowerCase(), candidate.toLowerCase());
+
+            const lowerVendor = trimmedVendorName.toLowerCase();
+            const lowerCandidate = candidate.toLowerCase();
+
+            // 1. Levenshtein Distance Check (for typos)
+            // Allow distance of 1 or 2 for typos, but length must be reasonably long
+            if (dist <= 2 && trimmedVendorName.length > 3) {
+                potentialMatchName = candidate;
+                break;
+            }
+
+            // 2. Containment Check (for "Apple Ta" vs "Apple")
+            // If one starts with the other, and length difference is small enough (e.g. OCR noise)
+            if ((lowerVendor.startsWith(lowerCandidate) || lowerCandidate.startsWith(lowerVendor)) &&
+                Math.abs(lowerVendor.length - lowerCandidate.length) <= 4 &&
+                Math.min(lowerVendor.length, lowerCandidate.length) > 3) {
+
+                potentialMatchName = candidate;
+                break;
+            }
+        }
+
+    } catch (e) {
+        console.error("Fuzzy match failed:", e);
+    }
+
+    if (potentialMatchName) {
+        // Validation: Check if the potential match has a mapped account
+        let potentialAccount = null;
+        try {
+            const mapping = await db.vendorMapping.findUnique({
+                where: {
+                    companyId_vendorName: {
+                        companyId,
+                        vendorName: potentialMatchName,
+                    },
+                },
             });
-            let bestAccount = Object.entries(accountCounts).sort(([,a],[,b]) => b - a)[0]?.[0];
-            if (bestAccount) return { suggestion_account_id: bestAccount, is_new_vendor: false, confidence: 0.9 };
+            if (mapping) {
+                potentialAccount = mapping.defaultDebitAccountId;
+            }
+        } catch (e) {
+            console.error("Failed to lookup potential match account", e);
         }
-
-        
-        const knownVendors = await prisma.vendorMapping.findMany({ where: { companyId } });
-        const fuse = new Fuse(knownVendors, { keys: ['vendorName'], threshold: 0.3 });
-        const fuzzyResult = fuse.search(trimmedVendorName);
-        if (fuzzyResult.length > 0) {
-            return {
-                suggestion_account_id: fuzzyResult[0].item.defaultDebitAccountId,
-                is_new_vendor: false,
-                potential_match: fuzzyResult[0].item.vendorName,
-                confidence: 0.85
-            };
-        }
-
-        
-        const accounts = await prisma.chartOfAccounts.findMany({ where: { companyId }, select: { id: true, name: true, type: true } });
-        const prompt = `expert accountant. Map "${vendorName}" to ID in: ${JSON.stringify(accounts)}. Return JSON { "matched_account_id": "string | null", "suggested_account_name": "string", "confidence": number }`;
-        const result = await model.generateContent(prompt);
-        const aiData = JSON.parse(result.response.text().replace(/```json/g, "").replace(/```/g, "").trim());
 
         return {
-            suggestion_account_id: aiData.matched_account_id,
-            is_new_vendor: true,
-            suggested_account_name: aiData.suggested_account_name,
-            confidence: aiData.confidence
+            suggestion_account_id: potentialAccount,
+            is_new_vendor: true, // Still new until confirmed
+            potential_match: potentialMatchName,
+            confidence: 0.7
         };
-    } catch (e) {
-        console.error("Critical Match Error:", e);
-        return { suggestion_account_id: null, is_new_vendor: true };
     }
+
+    // 2. If no mapping/history account, use Gemini to suggest a category/account
+    try {
+        const companyAccounts = await db.chartOfAccounts.findMany({
+            where: { companyId },
+            select: { id: true, name: true, type: true, code: true },
+        });
+
+        const prompt = `
+      You are an expert accountant. Code the following transaction.
+      
+      Vendor: "${vendorName}"
+      
+      Available Accounts:
+      ${JSON.stringify(companyAccounts.map(a => ({ id: a.id, name: a.name, type: a.type })))}
+      
+      Task:
+      1. Identify the most likely expense/asset account for this vendor.
+      2. If no exact match exists in the available accounts, suggest a standard accounting category name (e.g., "Software Subscription", "Office Supplies").
+      3. Return ONLY valid JSON:
+      {
+        "matched_account_id": "string OR null",
+        "suggested_account_name": "string",
+        "confidence": number (0-1)
+      }
+    `;
+
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
+
+        // Clean up JSON block if present
+        const cleanText = text.replace(/```json/g, "").replace(/```/g, "").trim();
+        const aiData = JSON.parse(cleanText);
+
+        return {
+            suggestion_account_id: aiData.matched_account_id || null,
+            is_new_vendor: !knownVendor, // If knownVendor is true, set is_new_vendor to false
+            suggested_account_name: aiData.suggested_account_name,
+            confidence: aiData.confidence,
+        };
+
+    } catch (error) {
+        console.error("Gemini AI Vendor Match Error:", error);
+        return {
+            suggestion_account_id: null,
+            is_new_vendor: !knownVendor // Fallback: if known, not new
+        };
+    }
+}
+
+// Helper: Levenshtein Distance
+function levenshteinDistance(a: string, b: string): number {
+    const matrix: number[][] = [];
+
+    for (let i = 0; i <= b.length; i++) {
+        matrix[i] = [i];
+    }
+
+    for (let j = 0; j <= a.length; j++) {
+        matrix[0][j] = j;
+    }
+
+    for (let i = 1; i <= b.length; i++) {
+        for (let j = 1; j <= a.length; j++) {
+            if (b.charAt(i - 1) == a.charAt(j - 1)) {
+                matrix[i][j] = matrix[i - 1][j - 1];
+            } else {
+                matrix[i][j] = Math.min(
+                    matrix[i - 1][j - 1] + 1, // substitution
+                    Math.min(
+                        matrix[i][j - 1] + 1, // insertion
+                        matrix[i - 1][j] + 1 // deletion
+                    )
+                );
+            }
+        }
+    }
+
+    return matrix[b.length][a.length];
 }

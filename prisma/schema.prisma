@@ -144,6 +144,7 @@ enum SourceType {
 enum EntryType {
   STANDARD
   REVERSAL
+  CLOSING
 }
 
 // ledger lines for each journal entry

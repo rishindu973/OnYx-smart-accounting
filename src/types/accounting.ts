@@ -3,6 +3,7 @@ export interface UniversalDocument {
         type: "CHEQUE" | "INVOICE" | "BILL"
         source: "AI_SCAN" | "USER_INPUT"
         isManual: boolean
+        is_date_fallback?: boolean
     };
     extracted_data: {
         date: string;
@@ -12,7 +13,7 @@ export interface UniversalDocument {
         currency: string;
     };
     intelligence: {
-        confidence_score: {
+        confidence_scores: {
             date: number;
             payee_name: number;
             amount_numeric: number;

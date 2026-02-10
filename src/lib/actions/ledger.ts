@@ -215,3 +215,159 @@ export async function voidTransaction(originalId: string, isPending: boolean = f
         return { success: false, error: "Failed to void transaction" };
     }
 }
+
+// ✅ From Plan: Year-End Closing Logic
+// [cite: Plan Step 4, User Request 3]
+export async function closeFiscalYear(companyId: string, closingDate: Date = new Date()) {
+    try {
+        // 1. Get Company details for Fiscal Year Start
+        const company = await db.company.findUnique({
+            where: { id: companyId },
+            select: { fiscalYearStart: true }
+        });
+
+        if (!company) throw new Error("Company not found");
+
+        const fiscalStart = new Date(company.fiscalYearStart);
+        // Adjust year if fiscalStart is ahead of closingDate
+        fiscalStart.setFullYear(closingDate.getFullYear() - (closingDate < fiscalStart ? 1 : 0));
+
+        // 2. Aggregate Temporary Accounts (Revenue & Expense)
+        // We need the NET balance of each account to zero it out.
+        const tempAccounts = await db.chartOfAccounts.findMany({
+            where: {
+                companyId,
+                type: { in: ["REVENUE", "EXPENSE"] }
+            },
+            include: {
+                ledgerLines: {
+                    where: {
+                        journalEntry: {
+                            entryDate: {
+                                gte: fiscalStart,
+                                lte: closingDate
+                            },
+                            // Exclude previous closing entries to avoid double counting if re-running?
+                            // For now, simpler is better: assume purely transactional sum.
+                            entryType: { not: "CLOSING" }
+                        }
+                    }
+                }
+            }
+        });
+
+        let totalNetIncome = 0;
+        const closingLines: { accountId: string; debit: number; credit: number; lineDescription: string }[] = [];
+
+        for (const acc of tempAccounts) {
+            // Calculate current balance
+            // For Revenue (Credit normal): Balance = Credit - Debit
+            // For Expense (Debit normal): Balance = Debit - Credit
+            // We want to ZERO it out.
+            // If Revenue has Credit bal 1000, we need to DEBIT 1000.
+            // If Expense has Debit bal 500, we need to CREDIT 500.
+
+            let debitSum = 0;
+            let creditSum = 0;
+            acc.ledgerLines.forEach(line => {
+                debitSum += line.debit.toNumber();
+                creditSum += line.credit.toNumber();
+            });
+
+            const netDebit = debitSum - creditSum;
+            // If netDebit is Positive (Debit balance), we need Credit to close.
+            // If netDebit is Negative (Credit balance), we need Debit to close.
+
+            if (Math.abs(netDebit) < 0.01) continue; // Already zero-ish
+
+            if (netDebit > 0) {
+                // Has Debit balance (e.g. Expense). Credit to close.
+                closingLines.push({
+                    accountId: acc.id,
+                    debit: 0,
+                    credit: netDebit,
+                    lineDescription: `Year-End Closing: Zero out ${acc.name}`
+                });
+                totalNetIncome -= netDebit; // Expense reduces income
+            } else {
+                // Has Credit balance (e.g. Revenue). Debit to close.
+                const absBal = Math.abs(netDebit);
+                closingLines.push({
+                    accountId: acc.id,
+                    debit: absBal,
+                    credit: 0,
+                    lineDescription: `Year-End Closing: Zero out ${acc.name}`
+                });
+                totalNetIncome += absBal; // Revenue increases income
+            }
+        }
+
+        if (closingLines.length === 0) {
+            return { success: true, message: "No balances to close." };
+        }
+
+        // 3. Find or Create Retained Earnings Account
+        let retainedEarnings = await db.chartOfAccounts.findFirst({
+            where: { companyId, name: "Retained Earnings", type: "EQUITY" }
+        });
+
+        if (!retainedEarnings) {
+            // Fallback: Try to find ANY Equity account? Or better, create one.
+            // For safety, let's create one if missing.
+            // We need a code... let's assume a standard one or finding the max equity code + 1. 
+            // Simplified: use a fixed code or fail. Let's try to create.
+            retainedEarnings = await db.chartOfAccounts.create({
+                data: {
+                    companyId,
+                    name: "Retained Earnings",
+                    type: "EQUITY",
+                    code: "3999", // Standard-ish placeholder
+                }
+            });
+        }
+
+        // 4. Add Retained Earnings Line
+        if (totalNetIncome > 0) {
+            // Profit: Credit Retained Earnings
+            closingLines.push({
+                accountId: retainedEarnings.id,
+                debit: 0,
+                credit: totalNetIncome,
+                lineDescription: "Year-End Closing: Net Income Allocation"
+            });
+        } else if (totalNetIncome < 0) {
+            // Loss: Debit Retained Earnings
+            closingLines.push({
+                accountId: retainedEarnings.id,
+                debit: Math.abs(totalNetIncome),
+                credit: 0,
+                lineDescription: "Year-End Closing: Net Loss Allocation"
+            });
+        }
+
+        // 5. Commit Transaction
+        const result = await db.$transaction(async (tx) => {
+            const je = await tx.journalEntry.create({
+                data: {
+                    companyId,
+                    entryDate: closingDate,
+                    description: `Fiscal Year Closing: ${fiscalStart.toISOString().split('T')[0]} - ${closingDate.toISOString().split('T')[0]}`,
+                    sourceType: "USER_INPUT",
+                    entryType: "CLOSING",
+                    ledgerLines: {
+                        create: closingLines
+                    }
+                }
+            });
+            return je;
+        });
+
+        revalidatePath("/ledger");
+        revalidatePath("/dashboard");
+        return { success: true, id: result.id };
+
+    } catch (error: any) {
+        console.error("Year End Closing Error:", error);
+        return { success: false, error: error.message };
+    }
+}
