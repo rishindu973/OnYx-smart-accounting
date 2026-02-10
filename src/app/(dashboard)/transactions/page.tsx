@@ -338,33 +338,7 @@ export default function TransactionsPage() {
             </AnimatePresence>
 
             <div className="space-y-5">
-              {/* Account ID Field */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-sm font-medium">Account ID</label>
-                  {isScanned && form.accountId && (
-                    <span className="rounded-full px-3 py-1 text-xs font-semibold border bg-blue-500/20 text-blue-300 border-blue-500/30">
-                      AI Suggestion
-                    </span>
-                  )}
-                </div>
-                <input
-                  value={form.accountId}
-                  onChange={onChange("accountId")}
-                  placeholder="e.g. 5001"
-                  className={[
-                    "w-full rounded-xl border bg-background px-3 py-2 text-sm outline-none",
-                    "focus:ring-2 focus:ring-ring transition",
-                    "shadow-inner shadow-black/20",
-                    isScanned && form.accountId ? "bg-blue-950/20 border-blue-500/40" : "",
-                  ].join(" ")}
-                />
-                {isScanned && form.accountId && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Based on vendor "{form.payee}"
-                  </p>
-                )}
-              </div>
+
 
               {/* Payee */}
               <div>
