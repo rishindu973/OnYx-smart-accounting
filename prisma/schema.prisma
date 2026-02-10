@@ -161,33 +161,23 @@ model LedgerLine{
   @@index([accountId])
 }
 
-//daily limit tracking for companies
 model DailyLimit{
   id               String           @id @default(cuid())
   companyId        String
   company          Company          @relation(fields: [companyId], references: [id])
 
-  //  CHANGED: make it date-only to prevent timezone issues when rendering calendar
+
   date             DateTime         @db.Date
 
   maxAmount        Decimal          @default(0) @map("max_amount") @db.Decimal(15,2)
 
-  // ⚠️ Keep field (your frontend may expect it) BUT backend should compute from ledger credits.
+
   currentSpend     Decimal          @default(0) @map("current_spend") @db.Decimal(15,2)
-<<<<<<< HEAD
+
   createdAt        DateTime         @default(now()) @map("created_at")
   updatedAt        DateTime         @updatedAt @map("updated_at")
   
   audits       DailyLimitAudit[]
-=======
-
-  //  NEW: audit relation + timestamps
-  createdAt        DateTime         @default(now()) @map("created_at")
-  updatedAt        DateTime         @updatedAt @map("updated_at")
-
-  audits           DailyLimitAudit[]
->>>>>>> 201990ebd9d83727150e4c9f3c8116a0b7075d5d
-
   @@unique([companyId, date])
   @@index([companyId, date])
 }
@@ -207,18 +197,6 @@ model DailyLimitAudit {
   @@index([dailyLimitId])
   @@index([changedAt])
 }
-
-model DailyLimitAudit {
-  id           String     @id @default(cuid())
-  dailyLimitId String     @map("daily_limit_id")
-  dailyLimit   DailyLimit @relation(fields: [dailyLimitId], references: [id])
-  oldMaxAmount Decimal?   @map("old_max_amount") @db.Decimal(15, 2)
-  newMaxAmount Decimal    @map("new_max_amount") @db.Decimal(15, 2)
-  reason       String?
-  changedBy    String?    @map("changed_by")
-  changedAt    DateTime   @default(now()) @map("changed_at")
-}
-
 
 //vendor mapping to match naming conventions(suggestion memory)
 model VendorMapping{
