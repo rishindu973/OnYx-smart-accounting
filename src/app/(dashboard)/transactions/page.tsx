@@ -3,12 +3,15 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { UniversalDocument } from "@/types/accounting";
 import { saveScannedDocument } from "@/lib/actions/documents";
+import { motion, AnimatePresence } from "framer-motion";
+import { Sparkles, UserPlus, X } from "lucide-react";
 
 type ExtractForm = {
   payee: string;
   date: string;
   amount: string;
   amountInWords: string;
+  accountId: string;
 };
 
 export default function TransactionsPage() {
@@ -20,7 +23,10 @@ export default function TransactionsPage() {
     date: "",
     amount: "",
     amountInWords: "",
+    accountId: "",
   });
+
+  const [showVendorAlert, setShowVendorAlert] = useState(false);
 
   const isScanned = Boolean(scannedData);
 
@@ -45,7 +51,12 @@ export default function TransactionsPage() {
             ? String(parsed.extracted_data.total_amount)
             : "",
         amountInWords: parsed.extracted_data?.amount_in_words ?? "",
+        accountId: parsed.intelligence?.suggestion_account_id ?? "",
       });
+
+      setShowVendorAlert(
+        parsed.intelligence?.is_new_vendor || !!parsed.intelligence?.potential_match
+      );
 
       // prevent repeating
       sessionStorage.removeItem("last_scanned_doc");
@@ -61,7 +72,7 @@ export default function TransactionsPage() {
 
   const onClearManual = () => {
     if (isScanned) return;
-    setForm({ payee: "", date: "", amount: "", amountInWords: "" });
+    setForm({ payee: "", date: "", amount: "", amountInWords: "", accountId: "" });
   };
 
   const numericAmount = useMemo(() => {
@@ -118,6 +129,40 @@ export default function TransactionsPage() {
   const amountBadge = isScanned ? badgeFor(amountScore) : null;
   const wordsBadge = isScanned ? badgeFor(wordsScore) : null;
 
+  // ✅ AI POST HANDLER
+  const handlePost = async () => {
+    if (!scannedData) return;
+    const activeCompanyId = "clx-onyx-001";
+
+    // Merge manual edits into the AI data
+    const finalDoc = {
+      ...scannedData,
+      extracted_data: {
+        ...scannedData.extracted_data,
+        payee_name: form.payee,
+        date: form.date,
+        total_amount: Number(form.amount || 0),
+        amount_in_words: form.amountInWords,
+      },
+      intelligence: {
+        ...scannedData.intelligence,
+        suggestion_account_id: form.accountId,
+      }
+    };
+
+    const result = await saveScannedDocument(finalDoc, activeCompanyId);
+    if (result.success) {
+      alert("Transaction Posted Successfully! ✅");
+      setScannedData(null);
+      setForm({ payee: "", date: "", amount: "", amountInWords: "", accountId: "" });
+      // clear session
+      sessionStorage.removeItem("last_scanned_doc");
+      sessionStorage.removeItem("last_scanned_image");
+    } else {
+      alert("Save failed. Check console.");
+    }
+  };
+
   // ✅ MANUAL SAVE HANDLER
   const handleManualSave = async () => {
     const activeCompanyId = "clx-onyx-001"; // (replace later with auth-based company)
@@ -146,7 +191,7 @@ export default function TransactionsPage() {
           endorsement: 0,
         },
         amount_validation_passed: true,
-        suggestion_account_id: null,
+        suggestion_account_id: form.accountId || null,
         is_new_vendor: false,
       },
     };
@@ -155,7 +200,7 @@ export default function TransactionsPage() {
 
     if (result.success) {
       alert("Manual transaction saved to database ✅");
-      setForm({ payee: "", date: "", amount: "", amountInWords: "" });
+      setForm({ payee: "", date: "", amount: "", amountInWords: "", accountId: "" });
     } else {
       alert("Save failed ❌");
       console.error("Save failed:", result);
@@ -215,7 +260,112 @@ export default function TransactionsPage() {
               </button>
             </div>
 
+            {/* Vendor Alert */}
+            <AnimatePresence>
+              {showVendorAlert && scannedData && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className={`rounded-xl p-4 mb-6 flex items-start gap-4 ${scannedData.intelligence.potential_match
+                    ? 'bg-yellow-500/10 border border-yellow-500/30'
+                    : 'bg-blue-500/5 border border-blue-500/20'
+                    }`}
+                >
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${scannedData.intelligence.potential_match ? 'bg-yellow-500/20 text-yellow-500' : 'bg-blue-500/10 text-blue-500'
+                    }`}>
+                    {scannedData.intelligence.potential_match ? <Sparkles className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-sm">
+                      {scannedData.intelligence.potential_match ? "Potential Vendor Match" : "New Vendor Detected"}
+                    </h4>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      {scannedData.intelligence.potential_match
+                        ? <span>Did you mean <strong>"{scannedData.intelligence.potential_match}"</strong>? We found a similar known vendor.</span>
+                        : `"${form.payee}" is not in your vendor list.`
+                      }
+                    </p>
+                    <div className="flex gap-2">
+                      {scannedData.intelligence.potential_match ? (
+                        <>
+                          <button
+                            className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90"
+                            onClick={() => {
+                              setForm(prev => ({ ...prev, payee: scannedData.intelligence.potential_match! }));
+                              setShowVendorAlert(false);
+                            }}
+                          >
+                            Yes, Use "{scannedData.intelligence.potential_match}"
+                          </button>
+                          <button
+                            className="rounded-lg border px-3 py-1.5 text-xs hover:bg-accent"
+                            onClick={() => {
+                              // Logic to create draft account would go here
+                              setForm(prev => ({ ...prev, accountId: "DRAFT_ACC_PENDING" }));
+                              setShowVendorAlert(false);
+                            }}
+                          >
+                            No, Create New
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90"
+                            onClick={() => {
+                              setForm(prev => ({ ...prev, accountId: "DRAFT_ACC_PENDING" }));
+                              setShowVendorAlert(false);
+                            }}
+                          >
+                            Create Account
+                          </button>
+                          <button
+                            className="rounded-lg border px-3 py-1.5 text-xs hover:bg-accent"
+                            onClick={() => setShowVendorAlert(false)}
+                          >
+                            Dismiss
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <button onClick={() => setShowVendorAlert(false)} className="text-muted-foreground hover:text-foreground">
+                    <X className="w-4 h-4" />
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <div className="space-y-5">
+              {/* Account ID Field */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm font-medium">Account ID</label>
+                  {isScanned && form.accountId && (
+                    <span className="rounded-full px-3 py-1 text-xs font-semibold border bg-blue-500/20 text-blue-300 border-blue-500/30">
+                      AI Suggestion
+                    </span>
+                  )}
+                </div>
+                <input
+                  value={form.accountId}
+                  onChange={onChange("accountId")}
+                  placeholder="e.g. 5001"
+                  className={[
+                    "w-full rounded-xl border bg-background px-3 py-2 text-sm outline-none",
+                    "focus:ring-2 focus:ring-ring transition",
+                    "shadow-inner shadow-black/20",
+                    isScanned && form.accountId ? "bg-blue-950/20 border-blue-500/40" : "",
+                  ].join(" ")}
+                />
+                {isScanned && form.accountId && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Based on vendor "{form.payee}"
+                  </p>
+                )}
+              </div>
+
               {/* Payee */}
               <div>
                 <div className="flex items-center justify-between mb-2">
@@ -393,6 +543,30 @@ export default function TransactionsPage() {
               )}
 
               {/* AI save happens in ReviewWorkspace via "Post Transaction" */}
+              {isScanned && (
+                <div className="flex items-center gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setScannedData(null);
+                      setForm({ payee: "", date: "", amount: "", amountInWords: "", accountId: "" });
+                      sessionStorage.removeItem("last_scanned_doc");
+                      setImagePreview(null);
+                    }}
+                    className="rounded-xl border px-4 py-2 text-sm hover:bg-accent transition"
+                  >
+                    Discard
+                  </button>
+
+                  <button
+                    type="button"
+                    className="flex-1 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-95 transition shadow-lg shadow-black/30"
+                    onClick={handlePost}
+                  >
+                    Post Transaction
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </aside>
