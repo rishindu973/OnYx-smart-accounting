@@ -1,5 +1,6 @@
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/hooks/useTheme"; // Import the ThemeProvider
+import { LedgerProvider } from "@/contexts/LedgerContext"; // Import LedgerProvider
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -25,13 +26,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}>
         {/* ThemeProvider must wrap AuthProvider if it affects UI globally */}
         <ThemeProvider>
-          <AuthProvider>
-            {children}
-          </AuthProvider>
+          <LedgerProvider>
+            <AuthProvider>
+              {children}
+            </AuthProvider>
+          </LedgerProvider>
         </ThemeProvider>
       </body>
     </html>

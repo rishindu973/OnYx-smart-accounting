@@ -74,6 +74,7 @@ enum AccountType{
 //document and ai drafted flags
 model Document{
   id                String     @id @default(cuid())
+  createdAt         DateTime   @default(now()) @map("created_at")
   companyId         String
   company           Company    @relation(fields: [companyId], references: [id])
   fileUrl           String?    @map("file_url")
@@ -160,26 +161,23 @@ model LedgerLine{
   @@index([accountId])
 }
 
-//daily limit tracking for companies
 model DailyLimit{
   id               String           @id @default(cuid())
   companyId        String
   company          Company          @relation(fields: [companyId], references: [id])
 
-  //  CHANGED: make it date-only to prevent timezone issues when rendering calendar
+
   date             DateTime         @db.Date
 
   maxAmount        Decimal          @default(0) @map("max_amount") @db.Decimal(15,2)
 
-  // ⚠️ Keep field (your frontend may expect it) BUT backend should compute from ledger credits.
+
   currentSpend     Decimal          @default(0) @map("current_spend") @db.Decimal(15,2)
 
-  //  NEW: audit relation + timestamps
   createdAt        DateTime         @default(now()) @map("created_at")
   updatedAt        DateTime         @updatedAt @map("updated_at")
-
-  audits           DailyLimitAudit[]
-
+  
+  audits       DailyLimitAudit[]
   @@unique([companyId, date])
   @@index([companyId, date])
 }

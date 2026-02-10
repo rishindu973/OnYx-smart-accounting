@@ -1,117 +1,105 @@
+// src/services/stats.ts
 import { db } from "../lib/db";
 import type { DashboardMetrics, PendingReviewItem, RecentActivityItem } from "../types/dashboard";
 
-function startOfDay(d = new Date()) {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x;
-}
-
-function endOfDay(d = new Date()) {
-  const x = new Date(d);
-  x.setHours(23, 59, 59, 999);
-  return x;
-}
+const DEFAULT_TZ = "Asia/Colombo";
 
 /**
- * Prisma JSON fields are typed as JsonValue:
- * string | number | boolean | JsonObject | JsonArray
- * So we safely narrow before accessing nested keys.
+ * Safely narrow Prisma JSON fields.
  */
 function asObject(value: unknown): Record<string, any> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   return value as Record<string, any>;
 }
 
-function extractConfidenceAvg(confidenceScores: unknown): number | null {
-  // Expected shape: confidenceScores.intelligence.confidence_score = { field: number, ... }
-  const root = asObject(confidenceScores);
-  const intelligence = asObject(root?.intelligence);
-  const conf = asObject(intelligence?.confidence_score);
-  if (!conf) return null;
+/**
+ * Returns instants for start/end of day. 
+ * Simplified to match local system time for the hackathon demo.
+ */
+function dayBoundsInTZ(timeZone: string, baseDate = new Date()) {
+  const start = new Date(baseDate);
+  start.setHours(0, 0, 0, 0); 
 
-  const values = Object.values(conf).filter((v) => typeof v === "number") as number[];
+  const end = new Date(baseDate);
+  end.setHours(23, 59, 59, 999); 
+
+  return { start, end };
+}
+
+function extractConfidenceAvg(confidenceScores: unknown): number | null {
+  const root = asObject(confidenceScores);
+  if (!root) return null;
+
+  const nested = asObject(asObject(root.intelligence)?.confidence_score);
+  const conf = nested ?? root;
+
+  const values = Object.values(conf)
+    .map((v) => (typeof v === "string" ? Number(v) : v))
+    .filter((v) => typeof v === "number" && !Number.isNaN(v)) as number[];
+
   if (values.length === 0) return null;
 
   const avg = values.reduce((a, b) => a + b, 0) / values.length;
-
-  // detect if 0-1 -> convert to 0-100
   const scaled = avg <= 1 ? avg * 100 : avg;
 
-  return Math.round(scaled * 10) / 10; // 1 decimal place
+  return Math.round(scaled * 10) / 10; 
 }
 
 export async function getDashboardMetrics(companyId?: string): Promise<DashboardMetrics> {
-  // If auth isn't implemented yet, pick the first company
-  const company =
-    companyId
-      ? await db.company.findUnique({ where: { id: companyId } })
-      : await db.company.findFirst();
+  const company = companyId
+    ? await db.company.findUnique({ where: { id: companyId } })
+    : await db.company.findFirst();
 
   const resolvedCompanyId = company?.id;
   const companyName = company?.name ?? "Company";
   const whereCompany = resolvedCompanyId ? { companyId: resolvedCompanyId } : {};
 
-  const todayStart = startOfDay();
-  const todayEnd = endOfDay();
+  const tz = process.env.DASHBOARD_TZ || DEFAULT_TZ;
+  const { start: todayStart, end: todayEnd } = dayBoundsInTZ(tz);
 
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
-  const yStart = startOfDay(yesterday);
-  const yEnd = endOfDay(yesterday);
+  const { start: yStart, end: yEnd } = dayBoundsInTZ(tz, yesterday);
 
   // 1) Transactions + growth
   const [todaysTransactions, yesterdaysTransactions] = await Promise.all([
-    db.journalEntry.count({
-      where: { ...whereCompany, entryDate: { gte: todayStart, lte: todayEnd } },
+    db.document.count({
+      where: { ...whereCompany, createdAt: { gte: todayStart, lte: todayEnd } },
     }),
-    db.journalEntry.count({
-      where: { ...whereCompany, entryDate: { gte: yStart, lte: yEnd } },
+    db.document.count({
+      where: { ...whereCompany, createdAt: { gte: yStart, lte: yEnd } },
     }),
   ]);
 
   const transactionsGrowthPct =
     yesterdaysTransactions === 0
-      ? todaysTransactions > 0
-        ? 100
-        : 0
+      ? todaysTransactions > 0 ? 100 : 0
       : Math.round(((todaysTransactions - yesterdaysTransactions) / yesterdaysTransactions) * 100);
-
-  // 2) Processed amount today from LedgerLines tied to today's journal entries
-  const ledgerAgg = await db.ledgerLine.aggregate({
-    _sum: { debit: true, credit: true },
+  
+  // 2) Processed amount today
+  const extractionAgg = await db.extractedInformation.aggregate({
+    _sum: { totalAmount: true },
     where: {
-      journalEntry: { ...whereCompany, entryDate: { gte: todayStart, lte: todayEnd } },
+      document: { 
+        ...whereCompany, 
+        createdAt: { gte: todayStart, lte: todayEnd } 
+      },
     },
   });
+  const processedAmount = Number(extractionAgg._sum.totalAmount ?? 0);
 
-  const totalDebit = Number(ledgerAgg._sum.debit ?? 0);
-  const totalCredit = Number(ledgerAgg._sum.credit ?? 0);
+  // 3) PROCESSED vs PENDING docs
+  const [processed, pending] = await Promise.all([
+    db.document.count({ 
+      where: { ...whereCompany, status: "PROCESSED", createdAt: { gte: todayStart, lte: todayEnd } } 
+    }),
+    db.document.count({ 
+      where: { ...whereCompany, status: "PENDING", createdAt: { gte: todayStart, lte: todayEnd } } 
+    }),
+  ]);
 
-  // Balanced journal -> net processed = average of totals
-  const processedAmount = Math.round(((totalDebit + totalCredit) / 2) * 100) / 100;
-
-  // 3) PROCESSED vs PENDING docs (linked to today's journal entries)
-  const todaysDocIds = await db.journalEntry.findMany({
-    where: { ...whereCompany, entryDate: { gte: todayStart, lte: todayEnd } },
-    select: { documentId: true },
-  });
-
-  const docIds = todaysDocIds.map((x) => x.documentId).filter(Boolean) as string[];
-
-  let processed = 0;
-  let pending = 0;
-
-  if (docIds.length > 0) {
-    [processed, pending] = await Promise.all([
-      db.document.count({ where: { id: { in: docIds }, status: "PROCESSED" } }),
-      db.document.count({ where: { id: { in: docIds }, status: "PENDING" } }),
-    ]);
-  }
-
-  // 4) AI Confidence Avg from ExtractedInformation.confidenceScores JSON
+  // 4) AI Confidence Avg
   let aiConfidenceAvg = 0;
-
   if (resolvedCompanyId) {
     const extracted = await db.extractedInformation.findMany({
       where: { document: { companyId: resolvedCompanyId } },
@@ -130,12 +118,12 @@ export async function getDashboardMetrics(companyId?: string): Promise<Dashboard
     }
   }
 
-  // 5) Reversals today + reversal amount
+  // 5) Reversals today
   const reversalsToday = await db.journalEntry.count({
     where: {
       ...whereCompany,
-      entryType: "REVERSAL",
-      entryDate: { gte: todayStart, lte: todayEnd },
+      createdAt: { gte: todayStart, lte: todayEnd },
+      OR: [{ entryType: "REVERSAL" }, { reversalOfId: { not: null } }],
     },
   });
 
@@ -144,8 +132,8 @@ export async function getDashboardMetrics(companyId?: string): Promise<Dashboard
     where: {
       journalEntry: {
         ...whereCompany,
-        entryType: "REVERSAL",
-        entryDate: { gte: todayStart, lte: todayEnd },
+        createdAt: { gte: todayStart, lte: todayEnd },
+        OR: [{ entryType: "REVERSAL" }, { reversalOfId: { not: null } }],
       },
     },
   });
@@ -156,7 +144,6 @@ export async function getDashboardMetrics(companyId?: string): Promise<Dashboard
 
   // 6) Daily limit
   const baseLimit = Number(company?.dailyLimitBase ?? 50000);
-
   let dailyLimit = {
     limit: baseLimit,
     used: processedAmount,
@@ -182,11 +169,9 @@ export async function getDashboardMetrics(companyId?: string): Promise<Dashboard
     }
   }
 
-  // 7) Pending review items + count
+  // 7) Pending review items
   const pendingReviewItems: PendingReviewItem[] = [];
-
   if (resolvedCompanyId) {
-    // A) Pending documents
     const pendingDocs = await db.document.findMany({
       where: { companyId: resolvedCompanyId, status: "PENDING" },
       select: { id: true, type: true },
@@ -203,7 +188,6 @@ export async function getDashboardMetrics(companyId?: string): Promise<Dashboard
       });
     }
 
-    // B) Extracted signals: low confidence, failed validation, new vendor
     const extracted = await db.extractedInformation.findMany({
       where: { document: { companyId: resolvedCompanyId } },
       select: { documentId: true, amountValidationPass: true, confidenceScores: true },
@@ -212,7 +196,6 @@ export async function getDashboardMetrics(companyId?: string): Promise<Dashboard
 
     for (const row of extracted) {
       const avg = extractConfidenceAvg(row.confidenceScores) ?? 100;
-
       const root = asObject(row.confidenceScores);
       const intelligence = asObject(root?.intelligence);
       const isNewVendor = intelligence?.is_new_vendor === true;
@@ -251,40 +234,37 @@ export async function getDashboardMetrics(companyId?: string): Promise<Dashboard
 
   const pendingReviewCount = pendingReviewItems.length;
 
-  // 8) Recent activity
-  const entries = await db.journalEntry.findMany({
+  // 8) Recent activity - Pull 10 items from Document table
+  const entries = await db.document.findMany({
     where: { ...whereCompany },
-    orderBy: { entryDate: "desc" },
-    take: 5,
-    select: { id: true, description: true, entryDate: true, sourceType: true },
+    orderBy: { createdAt: "desc" },
+    take: 10,
+    include: { extraction: true },
   });
 
-  const recentActivity: RecentActivityItem[] = entries.map((e) => ({
-    id: e.id,
-    title: e.description ?? "Journal Entry",
-    amount: 0,
-    source: e.sourceType,
-    time: e.entryDate.toISOString(),
-  }));
+  const recentActivity: RecentActivityItem[] = entries.map((e) => {
+    const data = e.extraction?.extractedData as any;
+    return {
+      id: e.id,
+      title: data?.vendor_name || data?.payee_name || "Pending Extraction",
+      amount: Number(e.extraction?.totalAmount ?? 0),
+      source: e.extraction?.isManual ? "USER_INPUT" : "AI_SCAN",
+      time: e.createdAt.toISOString(),
+    };
+  });
 
   return {
     companyName,
-
     todaysTransactions,
     transactionsGrowthPct,
-
     processedAmount,
     processedBreakdown: { processed, pending },
-
     aiConfidenceAvg,
     reversalsToday,
     reversalsAmount,
-
     dailyLimit,
-
     pendingReviewCount,
     pendingReviewItems,
-
     recentActivity,
   };
 }

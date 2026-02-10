@@ -4,7 +4,8 @@ import { fetchDashboardData } from "@/services/dashboard.service";
 export async function GET() {
   try {
     // later: get companyId from auth/session
-    const companyId = undefined;
+    const activeCompanyId = "clx-onyx-001";
+    const companyId = activeCompanyId || "clx-onyx-001"; // fallback for testing
 
     const metrics = await fetchDashboardData(companyId);
 
