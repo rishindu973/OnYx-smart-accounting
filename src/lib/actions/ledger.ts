@@ -80,7 +80,7 @@ export async function getLedgerLines(): Promise<LedgerEntry[]> {
             reversalOfId: undefined,
             isReversed: false,
             // ✅ From Incoming: Marks item as pending for the UI [cite: 124]
-            isPending: true, 
+            isPending: true,
         }
     });
 
@@ -123,6 +123,8 @@ export async function createTransaction(data: LedgerEntry, companyId: string = "
         });
 
         revalidatePath("/ledger");
+        revalidatePath("/dashboard");
+        revalidatePath("/");
         return { success: true, id: journalEntry.id };
 
     } catch (error) {
@@ -153,6 +155,8 @@ export async function voidTransaction(originalId: string, isPending: boolean = f
             }
 
             revalidatePath("/ledger");
+            revalidatePath("/dashboard");
+            revalidatePath("/");
             return { success: true };
         }
 
@@ -202,6 +206,8 @@ export async function voidTransaction(originalId: string, isPending: boolean = f
         });
 
         revalidatePath("/ledger");
+        revalidatePath("/dashboard");
+        revalidatePath("/");
         return { success: true };
 
     } catch (error) {

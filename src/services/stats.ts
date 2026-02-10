@@ -18,10 +18,10 @@ function asObject(value: unknown): Record<string, any> | null {
  */
 function dayBoundsInTZ(timeZone: string, baseDate = new Date()) {
   const start = new Date(baseDate);
-  start.setHours(0, 0, 0, 0); 
+  start.setHours(0, 0, 0, 0);
 
   const end = new Date(baseDate);
-  end.setHours(23, 59, 59, 999); 
+  end.setHours(23, 59, 59, 999);
 
   return { start, end };
 }
@@ -33,6 +33,9 @@ function extractConfidenceAvg(confidenceScores: unknown): number | null {
   const nested = asObject(asObject(root.intelligence)?.confidence_score);
   const conf = nested ?? root;
 
+  /* 
+   * FIX: Safely handle null/undefined confidence scores
+   */
   const values = Object.values(conf)
     .map((v) => (typeof v === "string" ? Number(v) : v))
     .filter((v) => typeof v === "number" && !Number.isNaN(v)) as number[];
@@ -40,9 +43,9 @@ function extractConfidenceAvg(confidenceScores: unknown): number | null {
   if (values.length === 0) return null;
 
   const avg = values.reduce((a, b) => a + b, 0) / values.length;
-  const scaled = avg <= 1 ? avg * 100 : avg;
+  const scaled = avg <= 1 ? avg * 100 : avg; // Handle 0-1 vs 0-100 scales
 
-  return Math.round(scaled * 10) / 10; 
+  return Math.round(scaled * 10) / 10;
 }
 
 export async function getDashboardMetrics(companyId?: string): Promise<DashboardMetrics> {
@@ -52,7 +55,10 @@ export async function getDashboardMetrics(companyId?: string): Promise<Dashboard
 
   const resolvedCompanyId = company?.id;
   const companyName = company?.name ?? "Company";
-  const whereCompany = resolvedCompanyId ? { companyId: resolvedCompanyId } : {};
+  /* 
+   * FIX: Explicitly type the where clause to avoid union type issues with Prisma
+   */
+  const whereCompany: unknown = resolvedCompanyId ? { companyId: resolvedCompanyId } : {};
 
   const tz = process.env.DASHBOARD_TZ || DEFAULT_TZ;
   const { start: todayStart, end: todayEnd } = dayBoundsInTZ(tz);
@@ -64,10 +70,10 @@ export async function getDashboardMetrics(companyId?: string): Promise<Dashboard
   // 1) Transactions + growth
   const [todaysTransactions, yesterdaysTransactions] = await Promise.all([
     db.document.count({
-      where: { ...whereCompany, createdAt: { gte: todayStart, lte: todayEnd } },
+      where: { ...(whereCompany as any), createdAt: { gte: todayStart, lte: todayEnd } },
     }),
     db.document.count({
-      where: { ...whereCompany, createdAt: { gte: yStart, lte: yEnd } },
+      where: { ...(whereCompany as any), createdAt: { gte: yStart, lte: yEnd } },
     }),
   ]);
 
@@ -75,14 +81,14 @@ export async function getDashboardMetrics(companyId?: string): Promise<Dashboard
     yesterdaysTransactions === 0
       ? todaysTransactions > 0 ? 100 : 0
       : Math.round(((todaysTransactions - yesterdaysTransactions) / yesterdaysTransactions) * 100);
-  
+
   // 2) Processed amount today
   const extractionAgg = await db.extractedInformation.aggregate({
     _sum: { totalAmount: true },
     where: {
-      document: { 
-        ...whereCompany, 
-        createdAt: { gte: todayStart, lte: todayEnd } 
+      document: {
+        ...(whereCompany as any),
+        createdAt: { gte: todayStart, lte: todayEnd }
       },
     },
   });
@@ -90,11 +96,11 @@ export async function getDashboardMetrics(companyId?: string): Promise<Dashboard
 
   // 3) PROCESSED vs PENDING docs
   const [processed, pending] = await Promise.all([
-    db.document.count({ 
-      where: { ...whereCompany, status: "PROCESSED", createdAt: { gte: todayStart, lte: todayEnd } } 
+    db.document.count({
+      where: { ...(whereCompany as any), status: "PROCESSED", createdAt: { gte: todayStart, lte: todayEnd } }
     }),
-    db.document.count({ 
-      where: { ...whereCompany, status: "PENDING", createdAt: { gte: todayStart, lte: todayEnd } } 
+    db.document.count({
+      where: { ...(whereCompany as any), status: "PENDING", createdAt: { gte: todayStart, lte: todayEnd } }
     }),
   ]);
 
@@ -121,7 +127,7 @@ export async function getDashboardMetrics(companyId?: string): Promise<Dashboard
   // 5) Reversals today
   const reversalsToday = await db.journalEntry.count({
     where: {
-      ...whereCompany,
+      ...(whereCompany as any),
       createdAt: { gte: todayStart, lte: todayEnd },
       OR: [{ entryType: "REVERSAL" }, { reversalOfId: { not: null } }],
     },
@@ -131,7 +137,7 @@ export async function getDashboardMetrics(companyId?: string): Promise<Dashboard
     _sum: { debit: true, credit: true },
     where: {
       journalEntry: {
-        ...whereCompany,
+        ...(whereCompany as any),
         createdAt: { gte: todayStart, lte: todayEnd },
         OR: [{ entryType: "REVERSAL" }, { reversalOfId: { not: null } }],
       },
@@ -236,20 +242,26 @@ export async function getDashboardMetrics(companyId?: string): Promise<Dashboard
 
   // 8) Recent activity - Pull 10 items from Document table
   const entries = await db.document.findMany({
-    where: { ...whereCompany },
+    where: { ...(whereCompany as any) },
     orderBy: { createdAt: "desc" },
     take: 10,
     include: { extraction: true },
   });
 
   const recentActivity: RecentActivityItem[] = entries.map((e) => {
-    const data = e.extraction?.extractedData as any;
+    // Force type assertion since TS is confused about the include result
+    const ext = (e as any).extraction;
+    const data = ext?.extractedData as any;
+    // Explicitly cast e to any to access createdAt if TS is complaining
+    const createdAt = (e as any).createdAt;
+
     return {
       id: e.id,
       title: data?.vendor_name || data?.payee_name || "Pending Extraction",
-      amount: Number(e.extraction?.totalAmount ?? 0),
-      source: e.extraction?.isManual ? "USER_INPUT" : "AI_SCAN",
-      time: e.createdAt.toISOString(),
+      amount: Number(ext?.totalAmount ?? 0),
+      source: ext?.isManual ? "USER_INPUT" : "AI_SCAN",
+      time: createdAt ? new Date(createdAt).toISOString() : new Date().toISOString(),
+      subtitle: data?.category || "Uncategorized"
     };
   });
 

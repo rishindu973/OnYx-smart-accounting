@@ -48,7 +48,7 @@ export const LedgerProvider = ({ children }: { children: ReactNode }) => {
      */
     const recordNewTransaction = (description: string, amount: number, isDebit: boolean, id?: string) => {
         setNewTransactionCount((prev) => prev + 1);
-        
+
         // Create optimistic entry [cite: 164-167]
         const newEntry = {
             id: id || Math.random().toString(),
@@ -63,7 +63,7 @@ export const LedgerProvider = ({ children }: { children: ReactNode }) => {
 
         const message = `New transaction: ${description} (${isDebit ? 'Debit' : 'Credit'} ${amount})`;
         setNotifications(prev => [message, ...prev]);
-        
+
         toast({
             title: "New Transaction",
             description: "Transaction saved successfully.",
@@ -79,9 +79,10 @@ export const LedgerProvider = ({ children }: { children: ReactNode }) => {
 
             if (result && result.success) {
                 recordNewTransaction(
-                    transaction.description, 
-                    transaction.debit || transaction.credit || 0, 
-                    !!transaction.debit
+                    transaction.description,
+                    transaction.debit || transaction.credit || 0,
+                    !!transaction.debit,
+                    result.id
                 );
             } else {
                 throw new Error(result?.error || "Unknown error");

@@ -21,14 +21,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>("dark");
 
   useEffect(() => {
-    // Only access localStorage and document after the component mounts
-    const stored = localStorage.getItem("onyx-theme") as Theme;
-    if (stored) setTheme(stored);
-    
     const root = document.documentElement;
     root.classList.remove("light", "dark");
-    root.classList.add(stored || "dark");
-  }, []);
+    root.classList.add(theme);
+    localStorage.setItem("onyx-theme", theme);
+  }, [theme]);
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));

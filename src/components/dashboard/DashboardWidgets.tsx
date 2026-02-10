@@ -22,6 +22,9 @@ function timeAgo(iso: string) {
   const diff = Date.now() - d.getTime();
   if (Number.isNaN(d.getTime())) return "just now";
 
+  // Prevent negative diffs (future dates)
+  if (diff < 0) return "just now";
+
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return "just now";
   if (mins < 60) return `${mins} min ago`;
@@ -209,11 +212,10 @@ const DashboardWidgets = () => {
             {pendingReviewItems.slice(0, 3).map((item) => (
               <div
                 key={item.id + item.type}
-                className={`p-4 rounded-lg border ${
-                  item.type === "LOW_CONFIDENCE" || item.type === "FAILED_VALIDATION"
-                    ? "bg-warning/5 border-warning/20"
-                    : "bg-primary/5 border-primary/20"
-                }`}
+                className={`p-4 rounded-lg border ${item.type === "LOW_CONFIDENCE" || item.type === "FAILED_VALIDATION"
+                  ? "bg-warning/5 border-warning/20"
+                  : "bg-primary/5 border-primary/20"
+                  }`}
               >
                 <div className="flex items-start gap-3">
                   <FileWarning className="w-5 h-5 text-warning shrink-0 mt-0.5" />
@@ -249,7 +251,9 @@ const DashboardWidgets = () => {
                     <div className={`w-2 h-2 rounded-full ${isVerified ? "bg-success" : "bg-warning"}`} />
                     <div>
                       <p className="text-sm font-medium truncate max-w-[150px]">{item.title}</p>
-                      <span className="text-xs text-muted-foreground">{timeAgo(item.time)}</span>
+                      <span className="text-xs text-muted-foreground" suppressHydrationWarning>
+                        {timeAgo(item.time)}
+                      </span>
                     </div>
                   </div>
                   <span className="text-sm font-semibold">
