@@ -68,7 +68,7 @@ export async function POST(request: Request) {
         const docType = isCheque ? "CHEQUE" : "INVOICE"; // Determine the document type based on the presence of cheque-specific fields
 
         // Smart Suggestion Logic
-        let suggestionResult: { suggestion_account_id: string | null, is_new_vendor: boolean } = {
+        let suggestionResult: { suggestion_account_id: string | null, is_new_vendor: boolean, potential_match?: string } = {
             suggestion_account_id: null,
             is_new_vendor: true,
         };
@@ -92,6 +92,7 @@ export async function POST(request: Request) {
                     suggestionResult = {
                         suggestion_account_id: match.suggestion_account_id,
                         is_new_vendor: match.is_new_vendor,
+                        potential_match: match.potential_match
                     };
                 } catch (error) {
                     console.error("Error matching vendor:", error);
@@ -138,6 +139,7 @@ export async function POST(request: Request) {
                 amount_validation_passed: isAmountValid(numAmt, wordAmt),
                 suggestion_account_id: suggestionResult.suggestion_account_id,
                 is_new_vendor: suggestionResult.is_new_vendor,
+                potential_match: suggestionResult.potential_match
             },
         };
         return NextResponse.json(doc); // Return the extracted document data as a JSON response

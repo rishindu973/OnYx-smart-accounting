@@ -11,6 +11,7 @@ interface VendorMatchResult {
     is_new_vendor: boolean;
     suggested_account_name?: string;
     confidence?: number;
+    potential_match?: string;
 }
 
 export async function matchVendor(
@@ -25,12 +26,14 @@ export async function matchVendor(
         };
     }
 
+    const trimmedVendorName = vendorName.trim();
+
     // 1. Check Existing Vendor Mappings
     const existingMapping = await db.vendorMapping.findUnique({
         where: {
             companyId_vendorName: {
                 companyId,
-                vendorName,
+                vendorName: trimmedVendorName,
             },
         },
     });
@@ -45,14 +48,14 @@ export async function matchVendor(
     let knownVendor = false;
     let historicalAccount = null;
 
-    // 1.5. Check Historical Data
+    // 1.5. Check Historical Data (Strict Match)
     try {
         // Fetch recent documents with this payee name
         const historicalDocs = await db.extractedInformation.findMany({
             where: {
                 extractedData: {
                     path: ['payee_name'],
-                    equals: vendorName
+                    equals: trimmedVendorName
                 },
                 document: {
                     companyId: companyId
@@ -111,6 +114,68 @@ export async function matchVendor(
         };
     }
 
+    // 1.6. Fuzzy Match (If no exact match found)
+    // Fetch a batch of recent unique vendor names is ideal, but for now fetch recent docs
+    let potentialMatchName: string | undefined;
+
+    try {
+        const recentDocs = await db.extractedInformation.findMany({
+            where: {
+                document: { companyId: companyId }
+            },
+            select: {
+                extractedData: true
+            },
+            orderBy: { id: 'desc' },
+            take: 100 // Check last 100 documents
+        });
+
+        const candidates = new Set<string>();
+        for (const doc of recentDocs) {
+            const name = (doc.extractedData as any)?.payee_name;
+            if (name && typeof name === 'string' && name.length > 2) {
+                candidates.add(name);
+            }
+        }
+
+        for (const candidate of candidates) {
+            // Simple Distance Check
+            const dist = levenshteinDistance(trimmedVendorName.toLowerCase(), candidate.toLowerCase());
+
+            const lowerVendor = trimmedVendorName.toLowerCase();
+            const lowerCandidate = candidate.toLowerCase();
+
+            // 1. Levenshtein Distance Check (for typos)
+            // Allow distance of 1 or 2 for typos, but length must be reasonably long
+            if (dist <= 2 && trimmedVendorName.length > 3) {
+                potentialMatchName = candidate;
+                break;
+            }
+
+            // 2. Containment Check (for "Apple Ta" vs "Apple")
+            // If one starts with the other, and length difference is small enough (e.g. OCR noise)
+            if ((lowerVendor.startsWith(lowerCandidate) || lowerCandidate.startsWith(lowerVendor)) &&
+                Math.abs(lowerVendor.length - lowerCandidate.length) <= 4 &&
+                Math.min(lowerVendor.length, lowerCandidate.length) > 3) {
+
+                potentialMatchName = candidate;
+                break;
+            }
+        }
+
+    } catch (e) {
+        console.error("Fuzzy match failed:", e);
+    }
+
+    if (potentialMatchName) {
+        return {
+            suggestion_account_id: null,
+            is_new_vendor: true, // Still new until confirmed
+            potential_match: potentialMatchName,
+            confidence: 0.7
+        };
+    }
+
     // 2. If no mapping/history account, use Gemini to suggest a category/account
     try {
         const companyAccounts = await db.chartOfAccounts.findMany({
@@ -159,4 +224,35 @@ export async function matchVendor(
             is_new_vendor: !knownVendor // Fallback: if known, not new
         };
     }
+}
+
+// Helper: Levenshtein Distance
+function levenshteinDistance(a: string, b: string): number {
+    const matrix = [];
+
+    for (let i = 0; i <= b.length; i++) {
+        matrix[i] = [i];
+    }
+
+    for (let j = 0; j <= a.length; j++) {
+        matrix[0][j] = j;
+    }
+
+    for (let i = 1; i <= b.length; i++) {
+        for (let j = 1; j <= a.length; j++) {
+            if (b.charAt(i - 1) == a.charAt(j - 1)) {
+                matrix[i][j] = matrix[i - 1][j - 1];
+            } else {
+                matrix[i][j] = Math.min(
+                    matrix[i - 1][j - 1] + 1, // substitution
+                    Math.min(
+                        matrix[i][j - 1] + 1, // insertion
+                        matrix[i - 1][j] + 1 // deletion
+                    )
+                );
+            }
+        }
+    }
+
+    return matrix[b.length][a.length];
 }

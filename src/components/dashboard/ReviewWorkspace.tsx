@@ -1,12 +1,12 @@
 
 "use client";
 import { useState, useEffect } from "react";
-import { 
-  CheckCircle, 
-  AlertTriangle, 
-  FileText, 
-  ZoomIn, 
-  ZoomOut, 
+import {
+  CheckCircle,
+  AlertTriangle,
+  FileText,
+  ZoomIn,
+  ZoomOut,
   RotateCw,
   Sparkles,
   UserPlus,
@@ -24,14 +24,14 @@ interface ReviewWorkspaceProps {
   data: UniversalDocument;
 }
 
-  const ReviewWorkspace = ({ data: initialData }: ReviewWorkspaceProps) => {
+const ReviewWorkspace = ({ data: initialData }: ReviewWorkspaceProps) => {
   const [formData, setFormData] = useState(initialData);
   const [zoom, setZoom] = useState(100);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [showVendorAlert, setShowVendorAlert] = useState(formData.intelligence.is_new_vendor);
   const handleDismissVendorAlert = () => {
-  setShowVendorAlert(false);
-};
+    setShowVendorAlert(false);
+  };
 
   useEffect(() => {
     // Retrieve the preview URL we saved during the upload step
@@ -55,19 +55,19 @@ interface ReviewWorkspaceProps {
   };
 
   const handlePost = async () => {
-  const activeCompanyId = "clx-onyx-001"; // Matches seeded company
-  
-  console.log("Final payload to database:", formData.extracted_data);
+    const activeCompanyId = "clx-onyx-001"; // Matches seeded company
 
-  const result = await saveScannedDocument(formData, activeCompanyId);
-  
-  if (result.success) {
-    alert("Transaction Posted: AI results and manual corrections are now in PostgreSQL.");
-    window.location.href = '/transactions';
-  } else {
-    alert("Save failed. Check the server terminal for Prisma errors.");
-  }
-};
+    console.log("Final payload to database:", formData.extracted_data);
+
+    const result = await saveScannedDocument(formData, activeCompanyId);
+
+    if (result.success) {
+      alert("Transaction Posted: AI results and manual corrections are now in PostgreSQL.");
+      window.location.href = '/transactions';
+    } else {
+      alert("Save failed. Check the server terminal for Prisma errors.");
+    }
+  };
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-LK', {
@@ -76,27 +76,27 @@ interface ReviewWorkspaceProps {
     }).format(amount);
   };
 
- const handleCreateDraftAccount = async () => {
-  try {
-    // Member 5 logic: This is where you would call a server action 
-    // to create the account in your Chart_of_accounts table.
-    
-    // Update local state to show the user the "Brain" has acted
-    setFormData(prev => ({
-      ...prev,
-      intelligence: {
-        ...prev.intelligence,
-        is_new_vendor: false, // flag turn off
-        suggested_account_id: "DRAFT_ACC_PENDING", // Assign a draft account ID
-      }
-    }));
+  const handleCreateDraftAccount = async () => {
+    try {
+      // Member 5 logic: This is where you would call a server action 
+      // to create the account in your Chart_of_accounts table.
 
-    setShowVendorAlert(false);
-    alert(`Member 5 Logic: Draft account suggested for ${formData.extracted_data.payee_name}`);
-  } catch (error) {
-    console.error("Provisioning failed:", error);
-  }
-};
+      // Update local state to show the user the "Brain" has acted
+      setFormData(prev => ({
+        ...prev,
+        intelligence: {
+          ...prev.intelligence,
+          is_new_vendor: false, // flag turn off
+          suggested_account_id: "DRAFT_ACC_PENDING", // Assign a draft account ID
+        }
+      }));
+
+      setShowVendorAlert(false);
+      alert(`Member 5 Logic: Draft account suggested for ${formData.extracted_data.payee_name}`);
+    } catch (error) {
+      console.error("Provisioning failed:", error);
+    }
+  };
 
   return (
     <div className="h-[calc(100vh-4rem)] flex overflow-hidden">
@@ -113,12 +113,12 @@ interface ReviewWorkspaceProps {
             <Button variant="ghost" size="icon" onClick={() => setZoom(Math.min(200, zoom + 25))}><ZoomIn className="w-4 h-4" /></Button>
           </div>
         </div>
-        
+
         <div className="flex-1 overflow-auto p-4 flex items-start justify-center bg-muted/20">
           {imagePreview ? (
-            <img 
-              src={imagePreview} 
-              alt="Source Document" 
+            <img
+              src={imagePreview}
+              alt="Source Document"
               className="max-w-full h-auto shadow-2xl rounded-lg origin-top transition-transform duration-200"
               style={{ transform: `scale(${zoom / 100})` }}
             />
@@ -142,121 +142,150 @@ interface ReviewWorkspaceProps {
         </div>
 
         <div className="flex-1 p-6 overflow-auto space-y-6">
-        {showVendorAlert && (
-      <motion.div 
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-primary/5 border border-primary/20 rounded-xl p-4 mb-6 flex items-start gap-4"
-      >
-        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-          <UserPlus className="w-5 h-5 text-primary" />
-        </div>
-        <div className="flex-1">
-          <h4 className="font-semibold text-sm">New Vendor Detected</h4>
-          <p className="text-xs text-muted-foreground mb-3">
-            "{formData.extracted_data.payee_name}" is not in your vendor list.
-          </p>
-          <div className="flex gap-2">
-            <Button size="sm" onClick={handleCreateDraftAccount}>
-              Create Draft Account
-            </Button>
-            <Button size="sm" variant="ghost" onClick={handleDismissVendorAlert}>
-              Dismiss
-            </Button>
-          </div>
-        </div>
-        <button onClick={handleDismissVendorAlert} className="text-muted-foreground hover:text-foreground">
-          <X className="w-4 h-4" />
-        </button>
-      </motion.div>
-    )}
-        <div className="space-y-5">
-            
-      {/*Payee Field */}
-      <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="payee">Payee</Label>
-              {getConfidenceBadge('payee_name')}
-          </div>
-        <Input
-          id="payee"
-          defaultValue={formData.extracted_data.payee_name}
-          className={getFieldStyle('payee_name')}
-          onChange={(e) => setFormData({
-          ...formData,
-          extracted_data: { ...formData.extracted_data, payee_name: e.target.value }
-        })}
-        />
-          </div>
+          {showVendorAlert && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={`rounded-xl p-4 mb-6 flex items-start gap-4 ${formData.intelligence.potential_match
+                  ? 'bg-warning/10 border border-warning/30'
+                  : 'bg-primary/5 border border-primary/20'
+                }`}
+            >
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${formData.intelligence.potential_match ? 'bg-warning/20 text-warning' : 'bg-primary/10 text-primary'
+                }`}>
+                {formData.intelligence.potential_match ? <Sparkles className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
+              </div>
+              <div className="flex-1">
+                <h4 className="font-semibold text-sm">
+                  {formData.intelligence.potential_match ? "Potential Vendor Match" : "New Vendor Detected"}
+                </h4>
+                <p className="text-xs text-muted-foreground mb-3">
+                  {formData.intelligence.potential_match
+                    ? <span>Did you mean <strong>"{formData.intelligence.potential_match}"</strong>? We found a similar known vendor.</span>
+                    : `"${formData.extracted_data.payee_name}" is not in your vendor list.`
+                  }
+                </p>
+                <div className="flex gap-2">
+                  {formData.intelligence.potential_match ? (
+                    <>
+                      <Button size="sm" onClick={() => {
+                        setFormData(prev => ({
+                          ...prev,
+                          extracted_data: { ...prev.extracted_data, payee_name: prev.intelligence.potential_match! },
+                          intelligence: { ...prev.intelligence, is_new_vendor: false }
+                        }));
+                        setShowVendorAlert(false);
+                      }}>
+                        Yes, Use "{formData.intelligence.potential_match}"
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={handleCreateDraftAccount}>
+                        No, Create "{formData.extracted_data.payee_name}"
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button size="sm" onClick={handleCreateDraftAccount}>
+                        Create Account for "{formData.extracted_data.payee_name}"
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={handleDismissVendorAlert}>
+                        Dismiss
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+              <button onClick={handleDismissVendorAlert} className="text-muted-foreground hover:text-foreground">
+                <X className="w-4 h-4" />
+              </button>
+            </motion.div>
+          )}
+          <div className="space-y-5">
 
-      {/* Date Field (Fixed for OCR data)*/}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="date">Date</Label>
-              {getConfidenceBadge('date')}
-          </div>
-        <Input
-        id="date"
-        defaultValue={formData.extracted_data.date}
-        className={getFieldStyle('date')}
-        onChange={(e) => setFormData({
-          ...formData,
-          extracted_data: { ...formData.extracted_data, date: e.target.value }
-        })}
-        />
-        </div>
-
-      {/* Amount Field */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="amount">Amount (Rupees)</Label>
-              {getConfidenceBadge('amount_numeric')}
-          </div>
-        <Input
-        id="amount"
-        type="number"
-        step="0.01"
-        defaultValue={formData.extracted_data.total_amount}
-        className={getFieldStyle('amount_numeric')}
-        onChange={(e) => setFormData({
-          ...formData,
-          extracted_data: { ...formData.extracted_data, total_amount: Number(parseFloat(e.target.value).toFixed(2)) || 0 }
-        })}
-        />
-        </div>
-
-      {/*Amount in Words Field */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="amountWords">Amount in Words</Label>
-            {getConfidenceBadge('amount_in_words')}
-          </div>
-        <Input
-        id="amountWords"
-        defaultValue={formData.extracted_data.amount_in_words}
-        className={getFieldStyle('amount_in_words')}
-        onChange={(e) => setFormData({
-          ...formData,
-          extracted_data: { ...formData.extracted_data, amount_in_words: e.target.value }
-        })}
-        />
-        </div>
-      </div>
-
-      {/* Logic Validation Status*/}
-        <div className={`p-4 rounded-xl border ${amountsMatch ? 'bg-success/10 border-success/30' : 'bg-destructive/10 border-destructive/30'}`}>
-          <div className="flex items-center gap-3">
-              {amountsMatch ? <CheckCircle className="w-6 h-6 text-success" /> : <AlertTriangle className="w-6 h-6 text-destructive" />}
-            <div>
-              <p className={`font-semibold ${amountsMatch ? 'text-success' : 'text-destructive'}`}>
-                {amountsMatch ? 'AI Logic Verified' : 'Manual Review Suggested'}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                {amountsMatch
-                ? `Confirmed: Word amount aligns with ${formData.extracted_data.currency} ${formData.extracted_data.total_amount}.`
-                : `Alert: AI could not mathematically link "${formData.extracted_data.amount_in_words}" to the numeric amount.`}
-              </p>
+            {/*Payee Field */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="payee">Payee</Label>
+                {getConfidenceBadge('payee_name')}
+              </div>
+              <Input
+                id="payee"
+                defaultValue={formData.extracted_data.payee_name}
+                className={getFieldStyle('payee_name')}
+                onChange={(e) => setFormData({
+                  ...formData,
+                  extracted_data: { ...formData.extracted_data, payee_name: e.target.value }
+                })}
+              />
             </div>
+
+            {/* Date Field (Fixed for OCR data)*/}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="date">Date</Label>
+                {getConfidenceBadge('date')}
+              </div>
+              <Input
+                id="date"
+                defaultValue={formData.extracted_data.date}
+                className={getFieldStyle('date')}
+                onChange={(e) => setFormData({
+                  ...formData,
+                  extracted_data: { ...formData.extracted_data, date: e.target.value }
+                })}
+              />
+            </div>
+
+            {/* Amount Field */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="amount">Amount (Rupees)</Label>
+                {getConfidenceBadge('amount_numeric')}
+              </div>
+              <Input
+                id="amount"
+                type="number"
+                step="0.01"
+                defaultValue={formData.extracted_data.total_amount}
+                className={getFieldStyle('amount_numeric')}
+                onChange={(e) => setFormData({
+                  ...formData,
+                  extracted_data: { ...formData.extracted_data, total_amount: Number(parseFloat(e.target.value).toFixed(2)) || 0 }
+                })}
+              />
+            </div>
+
+            {/*Amount in Words Field */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="amountWords">Amount in Words</Label>
+                {getConfidenceBadge('amount_in_words')}
+              </div>
+              <Input
+                id="amountWords"
+                defaultValue={formData.extracted_data.amount_in_words}
+                className={getFieldStyle('amount_in_words')}
+                onChange={(e) => setFormData({
+                  ...formData,
+                  extracted_data: { ...formData.extracted_data, amount_in_words: e.target.value }
+                })}
+              />
+            </div>
+          </div>
+
+          {/* Logic Validation Status*/}
+          <div className={`p-4 rounded-xl border ${amountsMatch ? 'bg-success/10 border-success/30' : 'bg-destructive/10 border-destructive/30'}`}>
+            <div className="flex items-center gap-3">
+              {amountsMatch ? <CheckCircle className="w-6 h-6 text-success" /> : <AlertTriangle className="w-6 h-6 text-destructive" />}
+              <div>
+                <p className={`font-semibold ${amountsMatch ? 'text-success' : 'text-destructive'}`}>
+                  {amountsMatch ? 'AI Logic Verified' : 'Manual Review Suggested'}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {amountsMatch
+                    ? `Confirmed: Word amount aligns with ${formData.extracted_data.currency} ${formData.extracted_data.total_amount}.`
+                    : `Alert: AI could not mathematically link "${formData.extracted_data.amount_in_words}" to the numeric amount.`}
+                </p>
+              </div>
             </div>
           </div>
         </div>
