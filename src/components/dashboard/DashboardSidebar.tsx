@@ -1,11 +1,11 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { 
-  LayoutDashboard, 
-  FileText, 
-  Building2, 
-  Calendar, 
+import {
+  LayoutDashboard,
+  FileText,
+  Building2,
+  Calendar,
   BookOpen,
   LogOut,
   Upload,
@@ -51,7 +51,7 @@ const DashboardSidebar = () => {
   };
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-sidebar-border">
+    <Sidebar collapsible="offcanvas" className="border-r border-sidebar-border">
       <SidebarHeader className="p-4 border-b border-sidebar-border">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -64,7 +64,6 @@ const DashboardSidebar = () => {
               </span>
             )}
           </div>
-          <SidebarTrigger className="text-muted-foreground hover:text-foreground" />
         </div>
       </SidebarHeader>
 
@@ -79,76 +78,73 @@ const DashboardSidebar = () => {
                 const isActive = pathname === item.url; // Exact match for active state
 
                 return (
-                <SidebarMenuItem key={item.title}>
-                <SidebarMenuButton asChild tooltip={item.title}>
-                <Link 
-                href={item.url} 
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
-                isActive 
-                ? "bg-sidebar-accent text-foreground" 
-                : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent"
-                }`}
-            >
-              <item.icon className="w-5 h-5 shrink-0" />
-              {!collapsed && <span className="font-medium">{item.title}</span>}
-            </Link>
-                </SidebarMenuButton>
-                </SidebarMenuItem>
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild tooltip={item.title}>
+                      <Link
+                        href={item.url}
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${isActive
+                            ? "bg-sidebar-accent text-foreground"
+                            : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent"
+                          }`}
+                      >
+                        <item.icon className="w-5 h-5 shrink-0" />
+                        {!collapsed && <span className="font-medium">{item.title}</span>}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
                 );
               })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 
-<SidebarGroup className="mt-6">
-  <SidebarGroupLabel className="text-xs uppercase tracking-wider text-muted-foreground px-2">
-    {!collapsed && "Quick Actions"}
-  </SidebarGroupLabel>
-  <SidebarGroupContent>
-    <SidebarMenu>
-      {/* Scan Document */}
-      <SidebarMenuItem>
-        <SidebarMenuButton asChild tooltip="Scan Document">
-          <Link 
-            href="/scan"
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors w-full ${
-              pathname === "/scan" 
-                ? "bg-sidebar-accent text-foreground" 
-                : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent"
-            }`}
-          >
-            <Scan className="w-5 h-5 shrink-0" />
-            {!collapsed && <span className="font-medium">Scan Document</span>}
-          </Link>
-        </SidebarMenuButton>
-      </SidebarMenuItem>
+        <SidebarGroup className="mt-6">
+          <SidebarGroupLabel className="text-xs uppercase tracking-wider text-muted-foreground px-2">
+            {!collapsed && "Quick Actions"}
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {/* Scan Document */}
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild tooltip="Scan Document">
+                  <Link
+                    href="/scan"
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors w-full ${pathname === "/scan"
+                        ? "bg-sidebar-accent text-foreground"
+                        : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent"
+                      }`}
+                  >
+                    <Scan className="w-5 h-5 shrink-0" />
+                    {!collapsed && <span className="font-medium">Scan Document</span>}
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
 
-      {/* Upload Files */}
-      <SidebarMenuItem>
-        <SidebarMenuButton asChild tooltip="Upload Files">
-          <Link 
-            href="/upload"
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors w-full ${
-              pathname === "/upload" 
-                ? "bg-sidebar-accent text-foreground" 
-                : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent"
-            }`}
-          >
-            <Upload className="w-5 h-5 shrink-0" />
-            {!collapsed && <span className="font-medium">Upload Files</span>}
-          </Link>
-        </SidebarMenuButton>
-      </SidebarMenuItem>
-    </SidebarMenu>
-  </SidebarGroupContent>
-</SidebarGroup>
+              {/* Upload Files */}
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild tooltip="Upload Files">
+                  <Link
+                    href="/upload"
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors w-full ${pathname === "/upload"
+                        ? "bg-sidebar-accent text-foreground"
+                        : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent"
+                      }`}
+                  >
+                    <Upload className="w-5 h-5 shrink-0" />
+                    {!collapsed && <span className="font-medium">Upload Files</span>}
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
 
       <SidebarFooter className="p-4 border-t border-sidebar-border">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild tooltip="Logout">
-              <button 
+              <button
                 onClick={handleLogout}
                 className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:text-destructive transition-colors w-full"
               >
