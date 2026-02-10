@@ -1,9 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
   // output   = "../src/generated/prisma"
@@ -12,8 +9,8 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  // url      = "postgresql://postgres:password123@localhost:5432/onyx-db?schema=public"
 }
+
 //identity strategy: "uuid" is used for generating unique identifiers
 //1-1 relationship between User and Company
 model User{
@@ -24,12 +21,16 @@ model User{
   companyId         String     @unique
   company           Company    @relation(fields: [companyId], references: [id])
 }
+
 model Company{
   id                String     @id @default(cuid())
   name              String
+
+  // Used as fallback if a specific DailyLimit row is not set for a date
   dailyLimitBase    Decimal    @default(0) @map("daily_limit") @db.Decimal(15,2)
+
   fiscalYearStart   DateTime   @map("fiscal_year_start")
-  
+
   //relationships
   user              User?
   accounts          ChartOfAccounts[]
@@ -37,7 +38,6 @@ model Company{
   dailyLimits       DailyLimit[]
   vendorMappings    VendorMapping[]
   journalEntries    JournalEntry[]
-
 }
 
 model ChartOfAccounts{
@@ -47,17 +47,19 @@ model ChartOfAccounts{
   name              String     @map("account_name")
   type              AccountType     @map("account_type")
   code              String     @map("account_code")
-  currentBalance    Decimal    @default(0) @map("current_balance") @db.Decimal(15,2) 
+  currentBalance    Decimal    @default(0) @map("current_balance") @db.Decimal(15,2)
   isDraft           Boolean    @default(false) @map("is_draft")
   tags              Json?
 
   ledgerLines      LedgerLine[]
+  vendorMappingsAsDebit  VendorMapping[] @relation("debitAccount")
+  vendorMappingsAsCredit VendorMapping[] @relation("creditAccount")
 
   //self refferential relationship for sub accounts(utility -> electricity)
   parentAccountId  String?              @map("parent_account_id")
   parentAccount    ChartOfAccounts?     @relation("subAccounts", fields: [parentAccountId], references: [id])
   childAccounts    ChartOfAccounts[]    @relation("subAccounts")
-  
+
   @@unique([companyId, code])
 }
 
@@ -82,15 +84,15 @@ model Document{
   //ai extracted data-link to the ocr/model
   extraction        ExtractedInformation?
   journalEntry      JournalEntry[]
-
 }
-enum DocType{ 
+
+enum DocType{
   Cheque
   Invoice
   Bill
   Other
 }
-enum DocStatus{ 
+enum DocStatus{
   PENDING
   PROCESSED
   FAILED
@@ -114,30 +116,36 @@ model JournalEntry{
   company              Company         @relation(fields: [companyId], references: [id])
   documentId           String?
   document             Document?       @relation(fields: [documentId], references: [id])
-  
 
   //self refferring keys for the reversals entries
   reversalOfId         String?         @unique @map("reversal_of_id")
   reversalOf           JournalEntry?   @relation("ReversalEntries", fields: [reversalOfId],references: [id])
   revertedBy           JournalEntry?   @relation("ReversalEntries")
 
-  entryDate            DateTime         @map("entry_date")
+  //  date-only posting date (prevents timezone shifting + enables fast grouping by day)
+  entryDate            DateTime         @db.Date @map("entry_date")
+
   description          String?
   sourceType           SourceType
   entryType            EntryType        @default(STANDARD) @map("entry_type")
-  createdAt            DateTime         @default(now()) @map("created_at") 
+  createdAt            DateTime         @default(now()) @map("created_at")
 
   ledgerLines          LedgerLine[]
+
+  @@index([companyId, entryDate])
+  @@index([documentId])
 }
 
 enum SourceType {
-      AI_SCAN
-      USER_INPUT  
+  AI_SCAN
+  USER_INPUT
 }
+
 enum EntryType {
-      STANDARD
-      REVERSAL  
+  STANDARD
+  REVERSAL
 }
+
 // ledger lines for each journal entry
 model LedgerLine{
   id               String           @id @default(cuid())
@@ -145,24 +153,59 @@ model LedgerLine{
   journalEntry     JournalEntry     @relation(fields: [journalEntryId], references: [id])
   accountId        String
   account          ChartOfAccounts  @relation(fields: [accountId], references: [id])
-  debit            Decimal          @default(0) @db.Decimal(15,2) 
+  debit            Decimal          @default(0) @db.Decimal(15,2)
   credit           Decimal          @default(0) @db.Decimal(15,2)
   lineDescription  String?          @map("line_description")
+
+  @@index([journalEntryId])
+  @@index([accountId])
 }
+
 //daily limit tracking for companies
 model DailyLimit{
   id               String           @id @default(cuid())
   companyId        String
   company          Company          @relation(fields: [companyId], references: [id])
-  date             DateTime
+
+  //  CHANGED: make it date-only to prevent timezone issues when rendering calendar
+  date             DateTime         @db.Date
+
   maxAmount        Decimal          @default(0) @map("max_amount") @db.Decimal(15,2)
+
+  // ⚠️ Keep field (your frontend may expect it) BUT backend should compute from ledger credits.
   currentSpend     Decimal          @default(0) @map("current_spend") @db.Decimal(15,2)
+<<<<<<< HEAD
   createdAt        DateTime         @default(now()) @map("created_at")
   updatedAt        DateTime         @updatedAt @map("updated_at")
   
   audits       DailyLimitAudit[]
+=======
+
+  //  NEW: audit relation + timestamps
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  audits           DailyLimitAudit[]
+>>>>>>> 201990ebd9d83727150e4c9f3c8116a0b7075d5d
 
   @@unique([companyId, date])
+  @@index([companyId, date])
+}
+
+//  NEW: No-delete audit trail for DailyLimit changes
+model DailyLimitAudit {
+  id            String    @id @default(cuid())
+  dailyLimitId  String    @map("daily_limit_id")
+  dailyLimit    DailyLimit @relation(fields: [dailyLimitId], references: [id], onDelete: Restrict)
+
+  changedBy     String?   @map("changed_by") // you can store userId/email/name
+  oldMaxAmount  Decimal?  @map("old_max_amount") @db.Decimal(15,2)
+  newMaxAmount  Decimal   @map("new_max_amount") @db.Decimal(15,2)
+  reason        String?   @map("reason")
+  changedAt     DateTime  @default(now()) @map("changed_at")
+
+  @@index([dailyLimitId])
+  @@index([changedAt])
 }
 
 model DailyLimitAudit {
@@ -185,7 +228,11 @@ model VendorMapping{
   vendorName       String           @map("vendor_name")
   // mappedName       String      @map("mapped_name")
   defaultDebitAccountId  String     @map("default_debit_account_id")
+  defaultDebitAccount    ChartOfAccounts  @relation("debitAccount", fields: [defaultDebitAccountId], references: [id])
   defaultCreditAccountId  String    @map("default_credit_account_id")
+  defaultCreditAccount   ChartOfAccounts  @relation("creditAccount", fields: [defaultCreditAccountId], references: [id])
 
   @@unique([companyId, vendorName])
+  @@index([defaultDebitAccountId])
+  @@index([defaultCreditAccountId])
 }
