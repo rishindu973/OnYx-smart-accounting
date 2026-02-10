@@ -16,6 +16,20 @@ export async function saveScannedDocument(doc: UniversalDocument, companyId: str
     const isManual = doc.metadata.isManual;
     const sourceType = isManual ? SourceType.USER_INPUT : SourceType.AI_SCAN;
 
+    // 0) Resolve Account ID if provided [cite: Member 5 Logic]
+    let targetAccountId = null;
+    if (doc.intelligence.suggestion_account_id) {
+      const account = await prisma.chartOfAccounts.findFirst({
+        where: {
+          companyId,
+          code: doc.intelligence.suggestion_account_id,
+        },
+      });
+      if (account) {
+        targetAccountId = account.id;
+      }
+    }
+
     // 1) Create the Document record [cite: 1297]
     const createdDocument = await prisma.document.create({
       data: {
@@ -38,9 +52,17 @@ export async function saveScannedDocument(doc: UniversalDocument, companyId: str
             companyId,
             entryDate: new Date(doc.extracted_data.date),
             sourceType,
-            description: isManual 
-              ? `Manual entry: ${doc.extracted_data.payee_name}` 
+            description: isManual
+              ? `Manual entry: ${doc.extracted_data.payee_name}`
               : `AI scan: ${doc.extracted_data.payee_name}`,
+            ledgerLines: targetAccountId ? {
+              create: {
+                accountId: targetAccountId,
+                debit: toDecimal(doc.extracted_data.total_amount),
+                credit: 0,
+                lineDescription: doc.extracted_data.payee_name
+              }
+            } : undefined
           }
         }
       },
