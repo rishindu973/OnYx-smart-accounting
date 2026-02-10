@@ -272,18 +272,28 @@ const VirtualLedger = ({ initialData }: VirtualLedgerProps) => {
             </p>
             <div className="p-4 rounded-lg bg-warning/10 border border-warning/20">
               <p className="text-sm text-warning font-medium">
-                The original entry will be marked as reversed, and a new reversing entry will be created.
+                {displayTransactions.find(t => t.id === voidingEntry)?.isPending
+                  ? "This will remove the pending extraction. The source document will be marked as FAILED."
+                  : "The original entry will be marked as reversed, and a new reversing entry will be created."
+                }
               </p>
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setVoidingEntry(null)}>Cancel</Button>
               <Button variant="default" onClick={() => {
                 if (voidingEntry) {
-                  voidTransaction(voidingEntry);
+                  // Logic update: The voidingEntry state now needs to hold more than just ID if we want to be safe, 
+                  // OR we find the entry in the list again.
+                  // But wait, the state is just `string | null`. 
+                  // Let's find the entry from the list.
+                  const entry = displayTransactions.find(t => t.id === voidingEntry);
+                  if (entry) {
+                    voidTransaction(voidingEntry, entry.isPending);
+                  }
                   setVoidingEntry(null);
                 }
               }}>
-                Create Reversal
+                {displayTransactions.find(t => t.id === voidingEntry)?.isPending ? "Remove Entry" : "Create Reversal"}
               </Button>
             </div>
           </div>

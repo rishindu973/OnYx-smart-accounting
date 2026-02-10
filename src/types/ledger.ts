@@ -10,4 +10,5 @@ export interface LedgerEntry {
     documentUrl: string;
     reversalOfId?: string;
     isReversed?: boolean;
+    isPending?: boolean;
 }

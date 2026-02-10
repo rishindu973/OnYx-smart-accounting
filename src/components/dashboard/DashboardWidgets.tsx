@@ -14,6 +14,7 @@ import RadialProgress from "./RadialProgress";
 import { Badge } from "@/components/ui/badge";
 import type { DashboardMetrics } from "@/types/dashboard";
 import { useLedger } from "@/contexts/LedgerContext";
+// ✅ RESOLVED: Keep Link for "View All" navigation
 import Link from "next/link";
 
 function timeAgo(iso: string) {
@@ -38,47 +39,49 @@ const DashboardWidgets = () => {
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-useEffect(() => {
-  let alive = true;
+  /**
+   * ✅ RESOLVED: Keep Member 5 Polling Logic (5s interval) 
+   * This ensures the $99M volume updates live during scans
+   */
+  useEffect(() => {
+    let alive = true;
 
-  const load = async () => {
-    try {
-      setErrorMsg(null);
-      const res = await fetch("/api/dashboard", { cache: "no-store" });
-      if (!res.ok) throw new Error(`Failed to load dashboard: ${res.status}`);
-      const data = (await res.json()) as DashboardMetrics;
-      if (alive) setMetrics(data);
-    } catch (e) {
-      console.error(e);
-      if (alive) {
-        setMetrics(null);
-        setErrorMsg("Could not load dashboard data.");
+    const load = async () => {
+      try {
+        setErrorMsg(null);
+        const res = await fetch("/api/dashboard", { cache: "no-store" });
+        if (!res.ok) throw new Error(`Failed to load dashboard: ${res.status}`);
+        const data = (await res.json()) as DashboardMetrics;
+        if (alive) setMetrics(data);
+      } catch (e) {
+        console.error("Dashboard fetch error:", e);
+        if (alive) {
+          setMetrics(null);
+          setErrorMsg("Could not load dashboard data.");
+        }
+      } finally {
+        if (alive) setLoading(false);
       }
-    } finally {
-      if (alive) setLoading(false);
-    }
-  };
+    };
 
-  load();
-  const timer = setInterval(load, 5000); // refresh every 5s
+    load();
+    const timer = setInterval(load, 5000); // refresh every 5s for live demo feel
 
-  return () => {
-    alive = false;
-    clearInterval(timer);
-  };
-}, []);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [newTransactionCount]); // Refresh when context updates
 
-
-
-  if (loading) return <div className="p-6">Loading dashboard...</div>;
+  if (loading) return <div className="p-6 text-center">Loading Onyx Dashboard...</div>;
 
   if (errorMsg) {
     return (
       <div className="p-6">
-        <div className="glass-card rounded-xl p-5 border border-destructive/20">
-          <p className="text-sm font-medium">{errorMsg}</p>
+        <div className="glass-card rounded-xl p-5 border border-destructive/20 bg-destructive/5">
+          <p className="text-sm font-medium text-destructive">{errorMsg}</p>
           <p className="text-xs text-muted-foreground mt-2">
-            Check <span className="font-mono">/api/dashboard</span> and console logs.
+            Verify the <span className="font-mono">/api/dashboard</span> route is active.
           </p>
         </div>
       </div>
@@ -133,8 +136,9 @@ useEffect(() => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Processed Amount</p>
-              <p className="text-2xl font-bold mt-1">
-                LKR{processedAmount.toLocaleString()}
+              <p className="text-2xl font-bold mt-1 text-success">
+                {/* ✅ Keep LKR Label for SL market demo */}
+                LKR {processedAmount.toLocaleString()}
               </p>
             </div>
             <div className="p-3 rounded-lg bg-success/10">
@@ -171,27 +175,23 @@ useEffect(() => {
               <ArrowDownRight className="w-5 h-5 text-warning" />
             </div>
           </div>
-          <p className="text-xs text-muted-foreground mt-3">
-            ${reversalsAmount.toLocaleString()} reversed
+          <p className="text-xs text-muted-foreground mt-3 font-medium">
+            LKR {reversalsAmount.toLocaleString()} reversed
           </p>
         </div>
       </div>
 
-      {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Daily Limit Card */}
         <div className="glass-card rounded-xl p-6 flex flex-col items-center justify-center">
-          <h3 className="text-lg font-semibold mb-6">Daily Spending Limit</h3>
+          <h3 className="text-lg font-semibold mb-6 text-center">Daily Spending Limit</h3>
           <RadialProgress current={daily.used} max={daily.limit} size={220} strokeWidth={14} />
           <div className="mt-6 text-center">
             <p className="text-sm text-muted-foreground">
               <span className="text-success font-medium">
-                ${daily.remaining.toLocaleString()}
+                LKR {daily.remaining.toLocaleString()}
               </span>{" "}
               remaining today
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {daily.percent}% used today
             </p>
           </div>
         </div>
@@ -200,8 +200,7 @@ useEffect(() => {
         <div className="glass-card rounded-xl p-6">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-semibold">Pending Review</h3>
-            <Badge variant="pending" className="flex items-center gap-1">
-              <Clock className="w-3 h-3" />
+            <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20">
               {pendingReviewCount} items
             </Badge>
           </div>
@@ -210,90 +209,55 @@ useEffect(() => {
             {pendingReviewItems.slice(0, 3).map((item) => (
               <div
                 key={item.id + item.type}
-                className={`p-4 rounded-lg border ${item.type === "LOW_CONFIDENCE" || item.type === "FAILED_VALIDATION"
-                  ? "bg-warning/5 border-warning/20"
-                  : item.type === "NEW_VENDOR"
-                    ? "bg-primary/5 border-primary/20"
-                    : "bg-muted/50 border-border"
-                  }`}
+                className={`p-4 rounded-lg border ${
+                  item.type === "LOW_CONFIDENCE" || item.type === "FAILED_VALIDATION"
+                    ? "bg-warning/5 border-warning/20"
+                    : "bg-primary/5 border-primary/20"
+                }`}
               >
                 <div className="flex items-start gap-3">
-                  {item.type === "LOW_CONFIDENCE" || item.type === "FAILED_VALIDATION" ? (
-                    <FileWarning className="w-5 h-5 text-warning shrink-0 mt-0.5" />
-                  ) : item.type === "NEW_VENDOR" ? (
-                    <AlertCircle className="w-5 h-5 text-primary shrink-0 mt-0.5" />
-                  ) : (
-                    <Clock className="w-5 h-5 text-muted-foreground shrink-0 mt-0.5" />
-                  )}
-
+                  <FileWarning className="w-5 h-5 text-warning shrink-0 mt-0.5" />
                   <div>
                     <p className="font-medium text-sm">{item.title}</p>
                     <p className="text-xs text-muted-foreground mt-1">{item.message}</p>
-                    {item.actionLabel ? (
-                      <button className="text-xs text-primary font-medium mt-2 hover:underline">
-                        {item.actionLabel}
-                      </button>
-                    ) : null}
+                    <button className="text-xs text-primary font-medium mt-2 hover:underline">
+                      {item.actionLabel}
+                    </button>
                   </div>
                 </div>
               </div>
             ))}
-
-            {pendingReviewItems.length === 0 && (
-              <p className="text-sm text-muted-foreground">Nothing to review right now.</p>
-            )}
           </div>
         </div>
 
         {/* Recent Activity */}
         <div className="glass-card rounded-xl p-6">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold">Recent Activity</h3><Link
-              href="/ledger" // ✅ This redirects to your Virtual Ledger page
-              className="text-sm text-primary hover:underline"
-              >
-                View All
+            <h3 className="text-lg font-semibold">Recent Activity</h3>
+            {/* ✅ RESOLVED: Link to Virtual Ledger page */}
+            <Link href="/ledger" className="text-sm text-primary hover:underline">
+              View All
             </Link>
           </div>
 
           <div className="space-y-3">
             {recentActivity.map((item) => {
               const isVerified = item.source === "AI_SCAN";
-
               return (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors"
-                >
+                <div key={item.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors">
                   <div className="flex items-center gap-3">
                     <div className={`w-2 h-2 rounded-full ${isVerified ? "bg-success" : "bg-warning"}`} />
                     <div>
-                      <p className="text-sm font-medium truncate max-w-[180px]">{item.title}</p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <Badge
-                          variant={item.source === "AI_SCAN" ? "ai" : "manual"}
-                          className="text-[10px]"
-                        >
-                          {item.source}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">{timeAgo(item.time)}</span>
-                      </div>
-                      {item.subtitle ? (
-                        <p className="text-xs text-muted-foreground mt-1">{item.subtitle}</p>
-                      ) : null}
+                      <p className="text-sm font-medium truncate max-w-[150px]">{item.title}</p>
+                      <span className="text-xs text-muted-foreground">{timeAgo(item.time)}</span>
                     </div>
                   </div>
-
-                  <span className="text-sm font-medium">
-                    ${Number(item.amount).toLocaleString()}
+                  <span className="text-sm font-semibold">
+                    LKR {Number(item.amount).toLocaleString()}
                   </span>
                 </div>
               );
             })}
-
-            {recentActivity.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No recent activity.</p>
-            ) : null}
           </div>
         </div>
       </div>

@@ -1,12 +1,11 @@
+// src/services/stats.ts
 import { db } from "../lib/db";
 import type { DashboardMetrics, PendingReviewItem, RecentActivityItem } from "../types/dashboard";
 
 const DEFAULT_TZ = "Asia/Colombo";
 
 /**
- * Prisma JSON fields are typed as JsonValue:
- * string | number | boolean | JsonObject | JsonArray
- * So we safely narrow before accessing nested keys.
+ * Safely narrow Prisma JSON fields.
  */
 function asObject(value: unknown): Record<string, any> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
@@ -14,51 +13,20 @@ function asObject(value: unknown): Record<string, any> | null {
 }
 
 /**
- * Returns UTC instants for the start/end of the given calendar day
- * in the provided IANA timezone.
+ * Returns instants for start/end of day. 
+ * Simplified to match local system time for the hackathon demo.
  */
 function dayBoundsInTZ(timeZone: string, baseDate = new Date()) {
-  // ✅ Create a new date instance for the start of the day
   const start = new Date(baseDate);
   start.setHours(0, 0, 0, 0); 
 
-  // ✅ Create a new date instance for the end of the day
   const end = new Date(baseDate);
   end.setHours(23, 59, 59, 999); 
 
   return { start, end };
 }
 
-function tzWallClockToInstant(wallClockUTC: Date, timeZone: string) {
-  const dtf = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    hour12: false,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-
-  const parts = dtf.formatToParts(wallClockUTC);
-  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value);
-
-  return new Date(
-    Date.UTC(
-      get("year"),
-      get("month") - 1,
-      get("day"),
-      get("hour"),
-      get("minute"),
-      get("second"),
-      wallClockUTC.getUTCMilliseconds()
-    )
-  );
-}
-
 function extractConfidenceAvg(confidenceScores: unknown): number | null {
-
   const root = asObject(confidenceScores);
   if (!root) return null;
 
@@ -72,16 +40,12 @@ function extractConfidenceAvg(confidenceScores: unknown): number | null {
   if (values.length === 0) return null;
 
   const avg = values.reduce((a, b) => a + b, 0) / values.length;
-
-  // If 0..1 → scale to 0..100
   const scaled = avg <= 1 ? avg * 100 : avg;
 
-  return Math.round(scaled * 10) / 10; // 1 decimal
+  return Math.round(scaled * 10) / 10; 
 }
 
-
 export async function getDashboardMetrics(companyId?: string): Promise<DashboardMetrics> {
-  // If auth isn't implemented yet, pick the first company
   const company = companyId
     ? await db.company.findUnique({ where: { id: companyId } })
     : await db.company.findFirst();
@@ -90,7 +54,6 @@ export async function getDashboardMetrics(companyId?: string): Promise<Dashboard
   const companyName = company?.name ?? "Company";
   const whereCompany = resolvedCompanyId ? { companyId: resolvedCompanyId } : {};
 
-  // ✅ "Today" = PROCESSED/CREATED today (not entryDate)
   const tz = process.env.DASHBOARD_TZ || DEFAULT_TZ;
   const { start: todayStart, end: todayEnd } = dayBoundsInTZ(tz);
 
@@ -98,46 +61,45 @@ export async function getDashboardMetrics(companyId?: string): Promise<Dashboard
   yesterday.setDate(yesterday.getDate() - 1);
   const { start: yStart, end: yEnd } = dayBoundsInTZ(tz, yesterday);
 
-  // 1) Transactions + growth (BASED ON createdAt of the Document)
-const [todaysTransactions, yesterdaysTransactions] = await Promise.all([
-  db.document.count({
-    where: { ...whereCompany, createdAt: { gte: todayStart, lte: todayEnd } },
-  }),
-  db.document.count({
-    where: { ...whereCompany, createdAt: { gte: yStart, lte: yEnd } },
-  }),
-]);
+  // 1) Transactions + growth
+  const [todaysTransactions, yesterdaysTransactions] = await Promise.all([
+    db.document.count({
+      where: { ...whereCompany, createdAt: { gte: todayStart, lte: todayEnd } },
+    }),
+    db.document.count({
+      where: { ...whereCompany, createdAt: { gte: yStart, lte: yEnd } },
+    }),
+  ]);
 
-const transactionsGrowthPct =
-  yesterdaysTransactions === 0
-    ? todaysTransactions > 0 ? 100 : 0
-    : Math.round(((todaysTransactions - yesterdaysTransactions) / yesterdaysTransactions) * 100);
+  const transactionsGrowthPct =
+    yesterdaysTransactions === 0
+      ? todaysTransactions > 0 ? 100 : 0
+      : Math.round(((todaysTransactions - yesterdaysTransactions) / yesterdaysTransactions) * 100);
   
-  // 2) Processed amount today (Based on Extracted totalAmount)
-const extractionAgg = await db.extractedInformation.aggregate({
-  _sum: { totalAmount: true },
-  where: {
-    document: { 
-      ...whereCompany, 
-      createdAt: { gte: todayStart, lte: todayEnd } 
+  // 2) Processed amount today
+  const extractionAgg = await db.extractedInformation.aggregate({
+    _sum: { totalAmount: true },
+    where: {
+      document: { 
+        ...whereCompany, 
+        createdAt: { gte: todayStart, lte: todayEnd } 
+      },
     },
-  },
-});
-const processedAmount = Number(extractionAgg._sum.totalAmount ?? 0);
+  });
+  const processedAmount = Number(extractionAgg._sum.totalAmount ?? 0);
 
-// 3) PROCESSED vs PENDING docs created today
-const [processed, pending] = await Promise.all([
-  db.document.count({ 
-    where: { ...whereCompany, status: "PROCESSED", createdAt: { gte: todayStart, lte: todayEnd } } 
-  }),
-  db.document.count({ 
-    where: { ...whereCompany, status: "PENDING", createdAt: { gte: todayStart, lte: todayEnd } } 
-  }),
-]);
+  // 3) PROCESSED vs PENDING docs
+  const [processed, pending] = await Promise.all([
+    db.document.count({ 
+      where: { ...whereCompany, status: "PROCESSED", createdAt: { gte: todayStart, lte: todayEnd } } 
+    }),
+    db.document.count({ 
+      where: { ...whereCompany, status: "PENDING", createdAt: { gte: todayStart, lte: todayEnd } } 
+    }),
+  ]);
 
-  // 4) AI Confidence Avg (overall for company)
+  // 4) AI Confidence Avg
   let aiConfidenceAvg = 0;
-
   if (resolvedCompanyId) {
     const extracted = await db.extractedInformation.findMany({
       where: { document: { companyId: resolvedCompanyId } },
@@ -156,36 +118,35 @@ const [processed, pending] = await Promise.all([
     }
   }
 
-  // 5) Reversals today + reversal amount (BASED ON createdAt)
+  // 5) Reversals today
   const reversalsToday = await db.journalEntry.count({
-  where: {
-    ...whereCompany,
-    createdAt: { gte: todayStart, lte: todayEnd },
-    OR: [{ entryType: "REVERSAL" }, { reversalOfId: { not: null } }],
-  },
-});
-
-  const reversalLedgerAgg = await db.ledgerLine.aggregate({
-  _sum: { debit: true, credit: true },
-  where: {
-    journalEntry: {
+    where: {
       ...whereCompany,
       createdAt: { gte: todayStart, lte: todayEnd },
       OR: [{ entryType: "REVERSAL" }, { reversalOfId: { not: null } }],
     },
-  },
-});
+  });
+
+  const reversalLedgerAgg = await db.ledgerLine.aggregate({
+    _sum: { debit: true, credit: true },
+    where: {
+      journalEntry: {
+        ...whereCompany,
+        createdAt: { gte: todayStart, lte: todayEnd },
+        OR: [{ entryType: "REVERSAL" }, { reversalOfId: { not: null } }],
+      },
+    },
+  });
 
   const revDebit = Number(reversalLedgerAgg._sum.debit ?? 0);
   const revCredit = Number(reversalLedgerAgg._sum.credit ?? 0);
   const reversalsAmount = Math.round(((revDebit + revCredit) / 2) * 100) / 100;
 
-  // 6) Daily limit (if DailyLimit exists for today, use it; else fallback to base + processedAmount)
+  // 6) Daily limit
   const baseLimit = Number(company?.dailyLimitBase ?? 50000);
-
   let dailyLimit = {
     limit: baseLimit,
-    used: processedAmount, // processed today (created today)
+    used: processedAmount,
     remaining: Math.max(0, baseLimit - processedAmount),
     percent: baseLimit > 0 ? Math.round((processedAmount / baseLimit) * 100) : 0,
   };
@@ -208,11 +169,9 @@ const [processed, pending] = await Promise.all([
     }
   }
 
-  // 7) Pending review items + count
+  // 7) Pending review items
   const pendingReviewItems: PendingReviewItem[] = [];
-
   if (resolvedCompanyId) {
-    // A) Pending documents
     const pendingDocs = await db.document.findMany({
       where: { companyId: resolvedCompanyId, status: "PENDING" },
       select: { id: true, type: true },
@@ -229,7 +188,6 @@ const [processed, pending] = await Promise.all([
       });
     }
 
-    // B) Extracted signals: low confidence, failed validation, new vendor
     const extracted = await db.extractedInformation.findMany({
       where: { document: { companyId: resolvedCompanyId } },
       select: { documentId: true, amountValidationPass: true, confidenceScores: true },
@@ -238,7 +196,6 @@ const [processed, pending] = await Promise.all([
 
     for (const row of extracted) {
       const avg = extractConfidenceAvg(row.confidenceScores) ?? 100;
-
       const root = asObject(row.confidenceScores);
       const intelligence = asObject(root?.intelligence);
       const isNewVendor = intelligence?.is_new_vendor === true;
@@ -277,47 +234,37 @@ const [processed, pending] = await Promise.all([
 
   const pendingReviewCount = pendingReviewItems.length;
 
-  // 8) Recent activity = most recently created entries (processing timeline)
+  // 8) Recent activity - Pull 10 items from Document table
   const entries = await db.document.findMany({
-  where: { ...whereCompany },
-  orderBy: { createdAt: "desc" },
-  take: 10,
-  include: {
-    extraction: true
-  },
-});
+    where: { ...whereCompany },
+    orderBy: { createdAt: "desc" },
+    take: 10,
+    include: { extraction: true },
+  });
 
-// ✅ Fix: Ensure 'data' is defined inside the map and structure matches RecentActivityItem
-const recentActivity: RecentActivityItem[] = entries.map((e) => {
-  const data = e.extraction?.extractedData as any; // ✅ This fixes "Cannot find name 'data'"
+  const recentActivity: RecentActivityItem[] = entries.map((e) => {
+    const data = e.extraction?.extractedData as any;
+    return {
+      id: e.id,
+      title: data?.vendor_name || data?.payee_name || "Pending Extraction",
+      amount: Number(e.extraction?.totalAmount ?? 0),
+      source: e.extraction?.isManual ? "USER_INPUT" : "AI_SCAN",
+      time: e.createdAt.toISOString(),
+    };
+  });
 
-  return {
-    id: e.id,
-    // ✅ Matches Ledger naming logic
-    title: data?.vendor_name || data?.payee_name || "Pending Extraction",
-    amount: Number(e.extraction?.totalAmount ?? 0),
-    source: e.extraction?.isManual ? "USER_INPUT" : "AI_SCAN",
-    time: e.createdAt.toISOString(),
-  };
-});
   return {
     companyName,
-
     todaysTransactions,
     transactionsGrowthPct,
-
     processedAmount,
     processedBreakdown: { processed, pending },
-
     aiConfidenceAvg,
     reversalsToday,
     reversalsAmount,
-
     dailyLimit,
-
     pendingReviewCount,
     pendingReviewItems,
-
     recentActivity,
   };
 }

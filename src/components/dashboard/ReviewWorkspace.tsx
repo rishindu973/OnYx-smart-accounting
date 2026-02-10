@@ -1,4 +1,3 @@
-
 "use client";
 import { useState, useEffect } from "react";
 import {
@@ -7,7 +6,6 @@ import {
   FileText,
   ZoomIn,
   ZoomOut,
-  RotateCw,
   Sparkles,
   UserPlus,
   X
@@ -31,18 +29,25 @@ const ReviewWorkspace = ({ data: initialData }: ReviewWorkspaceProps) => {
   const [zoom, setZoom] = useState(100);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [showVendorAlert, setShowVendorAlert] = useState(formData.intelligence.is_new_vendor);
+  
+  const { recordNewTransaction } = useLedger();
+  const router = useRouter();
+
   const handleDismissVendorAlert = () => {
     setShowVendorAlert(false);
   };
 
   useEffect(() => {
-    // Retrieve the preview URL we saved during the upload step
     const savedImage = sessionStorage.getItem("last_scanned_image");
     if (savedImage) setImagePreview(savedImage);
   }, []);
 
   const amountsMatch = formData.intelligence.amount_validation_passed;
 
+  /**
+   * ✅ FIXED: Changed confidence_scores to confidence_score (singular)
+   * to match your UniversalDocument interface.
+   */
   const getFieldStyle = (fieldName: keyof typeof formData.intelligence.confidence_score) => {
     const score = formData.intelligence.confidence_score[fieldName];
     if (score >= 0.95) return "";
@@ -56,57 +61,39 @@ const ReviewWorkspace = ({ data: initialData }: ReviewWorkspaceProps) => {
     return <Badge variant="destructive">Low</Badge>;
   };
 
-
-  const { recordNewTransaction } = useLedger();
-  const router = useRouter();
-
   const handlePost = async () => {
-  const activeCompanyId = "clx-onyx-001"; // Matches seeded company
-  const permanentUrl = sessionStorage.getItem("last_scanned_image_permanent") || "";
-  
-  console.log("Final payload to database:", formData.extracted_data);
-
-  const result = await saveScannedDocument(
-    formData,
-    activeCompanyId,
-    permanentUrl || ""
-  );
-  
-  if (result.success) {
-    recordNewTransaction(
-      formData.extracted_data.payee_name || "Unknown Payee",
-      formData.extracted_data.total_amount || 0,
-      true ,// Assuming debit for expenses
-      result.id
+    const activeCompanyId = "clx-onyx-001"; 
+    const permanentUrl = sessionStorage.getItem("last_scanned_image_permanent") || "";
+    
+    const result = await saveScannedDocument(
+      formData,
+      activeCompanyId,
+      permanentUrl || ""
     );
-    router.push('/transactions');
-    alert("Transaction Posted: AI results and manual corrections are now in PostgreSQL.");
-    window.location.href = '/transactions';
-  } else {
-    alert("Save failed. Check the server terminal for Prisma errors.");
-  }
-};
+    
+    if (result.success) {
+      recordNewTransaction(
+        formData.extracted_data.payee_name || "Unknown Payee",
+        formData.extracted_data.total_amount || 0,
+        true, 
+        result.id
+      );
 
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-LK', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(amount);
+      router.push('/transactions');
+      window.location.href = '/transactions';
+    } else {
+      alert("Save failed. Check the server terminal for Prisma errors.");
+    }
   };
 
   const handleCreateDraftAccount = async () => {
     try {
-      // Member 5 logic: This is where would call a server action
-      // to create the account in your Chart_of_accounts table.
-
-      // Update local state to show the user the "Brain" has acted
       setFormData(prev => ({
         ...prev,
         intelligence: {
           ...prev.intelligence,
-          is_new_vendor: false, // flag turn off
-          suggested_account_id: "DRAFT_ACC_PENDING", // Assign a draft account ID
+          is_new_vendor: false,
+          suggestion_account_id: "DRAFT_ACC_PENDING", 
         }
       }));
 
@@ -119,7 +106,7 @@ const ReviewWorkspace = ({ data: initialData }: ReviewWorkspaceProps) => {
 
   return (
     <div className="h-[calc(100vh-4rem)] flex overflow-hidden">
-      {/*LEFT SIDE: DOCUMENT VIEWER */}
+      {/* LEFT SIDE: DOCUMENT VIEWER */}
       <div className="w-1/2 border-r border-border flex flex-col bg-card overflow-hidden">
         <div className="p-4 border-b border-border flex items-center justify-between bg-background">
           <div className="flex items-center gap-2">
@@ -150,7 +137,7 @@ const ReviewWorkspace = ({ data: initialData }: ReviewWorkspaceProps) => {
         </div>
       </div>
 
-      {/*RIGHT SIDE: EXTRACTION FORM */}
+      {/* RIGHT SIDE: EXTRACTION FORM */}
       <div className="w-1/2 flex flex-col bg-background">
         <div className="p-4 border-b border-border flex items-center justify-between">
           <div className="flex items-center gap-2 font-medium">
@@ -159,6 +146,7 @@ const ReviewWorkspace = ({ data: initialData }: ReviewWorkspaceProps) => {
           </div>
           {formData.intelligence.is_new_vendor && <Badge variant="secondary">New Vendor</Badge>}
         </div>
+
         <div className="flex-1 p-6 overflow-auto space-y-6">
           {showVendorAlert && (
             <motion.div
@@ -175,12 +163,8 @@ const ReviewWorkspace = ({ data: initialData }: ReviewWorkspaceProps) => {
                   "{formData.extracted_data.payee_name}" is not in your vendor list.
                 </p>
                 <div className="flex gap-2">
-                  <Button size="sm" onClick={handleCreateDraftAccount}>
-                    Create Draft Account
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={handleDismissVendorAlert}>
-                    Dismiss
-                  </Button>
+                  <Button size="sm" onClick={handleCreateDraftAccount}>Create Draft Account</Button>
+                  <Button size="sm" variant="ghost" onClick={handleDismissVendorAlert}>Dismiss</Button>
                 </div>
               </div>
               <button onClick={handleDismissVendorAlert} className="text-muted-foreground hover:text-foreground">
@@ -188,79 +172,82 @@ const ReviewWorkspace = ({ data: initialData }: ReviewWorkspaceProps) => {
               </button>
             </motion.div>
           )}
+
           <div className="space-y-5">
-            {/*Payee Field */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="payee">Payee</Label>
+              <Label htmlFor="payee">Payee</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="payee"
+                  defaultValue={formData.extracted_data.payee_name}
+                  className={getFieldStyle('payee_name')}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    extracted_data: { ...formData.extracted_data, payee_name: e.target.value }
+                  })}
+                />
                 {getConfidenceBadge('payee_name')}
               </div>
-              <Input
-                id="payee"
-                defaultValue={formData.extracted_data.payee_name}
-                className={getFieldStyle('payee_name')}
-                onChange={(e) => setFormData({
-                  ...formData,
-                  extracted_data: { ...formData.extracted_data, payee_name: e.target.value }
-                })}
-              />
             </div>
 
-            {/* Date Field (Fixed for OCR data)*/}
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="date">Date</Label>
+              <Label htmlFor="date">Date</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="date"
+                  defaultValue={formData.extracted_data.date}
+                  className={getFieldStyle('date')}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    extracted_data: { ...formData.extracted_data, date: e.target.value }
+                  })}
+                />
                 {getConfidenceBadge('date')}
               </div>
-              <Input
-                id="date"
-                defaultValue={formData.extracted_data.date}
-                className={getFieldStyle('date')}
-                onChange={(e) => setFormData({
-                  ...formData,
-                  extracted_data: { ...formData.extracted_data, date: e.target.value }
-                })}
-              />
             </div>
 
-            {/* Amount Field */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="amount">Amount (Rupees)</Label>
+              <Label htmlFor="amount">Amount (Rupees)</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="amount"
+                  type="number"
+                  step="0.01"
+                  defaultValue={formData.extracted_data.total_amount}
+                  className={getFieldStyle('amount_numeric')}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    extracted_data: { ...formData.extracted_data, total_amount: Number(parseFloat(e.target.value).toFixed(2)) || 0 }
+                  })}
+                />
                 {getConfidenceBadge('amount_numeric')}
               </div>
-              <Input
-                id="amount"
-                type="number"
-                step="0.01"
-                defaultValue={formData.extracted_data.total_amount}
-                className={getFieldStyle('amount_numeric')}
-                onChange={(e) => setFormData({
-                  ...formData,
-                  extracted_data: { ...formData.extracted_data, total_amount: Number(parseFloat(e.target.value).toFixed(2)) || 0 }
-                })}
-              />
             </div>
 
-            {/*Amount in Words Field */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
+            {/**
+             * ✅ FIXED: Accessing 'type' via metadata object: formData.metadata.type
+             * and using singular 'confidence_score'.
+             */}
+            {formData.metadata.type === "CHEQUE" && (
+              <div className="space-y-2">
                 <Label htmlFor="amountWords">Amount in Words</Label>
-                {getConfidenceBadge('amount_in_words')}
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="amountWords"
+                    defaultValue={formData.extracted_data.amount_in_words}
+                    className={getFieldStyle('amount_in_words')}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      extracted_data: { ...formData.extracted_data, amount_in_words: e.target.value }
+                    })}
+                  />
+                  {getConfidenceBadge('amount_in_words')}
+                </div>
               </div>
-              <Input
-                id="amountWords"
-                defaultValue={formData.extracted_data.amount_in_words}
-                className={getFieldStyle('amount_in_words')}
-                onChange={(e) => setFormData({
-                  ...formData,
-                  extracted_data: { ...formData.extracted_data, amount_in_words: e.target.value }
-                })}
-              />
-            </div>
+            )}
           </div>
 
-          {/* Logic Validation Status*/}
+          {/* Agentic Check Result */}
           <div className={`p-4 rounded-xl border ${amountsMatch ? 'bg-success/10 border-success/30' : 'bg-destructive/10 border-destructive/30'}`}>
             <div className="flex items-center gap-3">
               {amountsMatch ? <CheckCircle className="w-6 h-6 text-success" /> : <AlertTriangle className="w-6 h-6 text-destructive" />}
@@ -270,8 +257,8 @@ const ReviewWorkspace = ({ data: initialData }: ReviewWorkspaceProps) => {
                 </p>
                 <p className="text-sm text-muted-foreground">
                   {amountsMatch
-                    ? `Confirmed: Word amount aligns with ${formData.extracted_data.currency} ${formData.extracted_data.total_amount}.`
-                    : `Alert: AI could not mathematically link "${formData.extracted_data.amount_in_words}" to the numeric amount.`}
+                    ? `Confirmed: Word amount aligns with LKR ${formData.extracted_data.total_amount}.`
+                    : `Alert: AI could not mathematically link "${formData.extracted_data.amount_in_words}" to the numeric total.`}
                 </p>
               </div>
             </div>
@@ -279,7 +266,7 @@ const ReviewWorkspace = ({ data: initialData }: ReviewWorkspaceProps) => {
         </div>
 
         <div className="p-4 border-t border-border flex items-center justify-between bg-card">
-          <Button variant="outline" onClick={() => window.location.href = '/upload'}>Discard</Button>
+          <Button variant="outline" onClick={() => router.push('/upload')}>Discard</Button>
           <Button variant="default" onClick={handlePost}>Post Transaction</Button>
         </div>
       </div>

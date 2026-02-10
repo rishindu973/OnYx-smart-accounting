@@ -1,17 +1,19 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, { createContext, useContext, useState, ReactNode } from "react";
 import { LedgerEntry } from "@/types/ledger";
 import { useToast } from "@/hooks/use-toast";
 
 interface LedgerContextType {
     transactions: LedgerEntry[];
     newTransactionCount: number;
-    notifications: string[]; // Added notifications array
+    notifications: string[];
     addTransaction: (transaction: LedgerEntry) => Promise<void>;
     setTransactions: (transactions: LedgerEntry[]) => void;
+    // ✅ Keep 'id' from HEAD for optimistic UI linking [cite: 154, 164]
     recordNewTransaction: (description: string, amount: number, isDebit: boolean, id?: string) => void;
-    voidTransaction: (id: string) => Promise<void>; // Added voidTransaction
+    // ✅ Adopt 'isPending' from Incoming for better governance [cite: 156]
+    voidTransaction: (id: string, isPending?: boolean) => Promise<void>;
     clearNotifications: () => void;
     totals: {
         debit: number;
@@ -33,27 +35,35 @@ export const useLedger = () => {
 export const LedgerProvider = ({ children }: { children: ReactNode }) => {
     const [transactions, setTransactionsState] = useState<LedgerEntry[]>([]);
     const [newTransactionCount, setNewTransactionCount] = useState(0);
-    const { toast } = useToast();
-
     const [notifications, setNotifications] = useState<string[]>([]);
+    const { toast } = useToast();
 
     const setTransactions = (initialTransactions: LedgerEntry[]) => {
         setTransactionsState(initialTransactions);
     };
 
+    /**
+     * Records a transaction in the local state and sends a notification.
+     * Keeps the 'id' logic from HEAD to support the Document Vault links. [cite: 163, 164]
+     */
     const recordNewTransaction = (description: string, amount: number, isDebit: boolean, id?: string) => {
         setNewTransactionCount((prev) => prev + 1);
+        
+        // Create optimistic entry [cite: 164-167]
         const newEntry = {
-        id: id || Math.random().toString(),
-        description,
-        debit: isDebit ? amount : 0,
-        credit: isDebit ? 0 : amount,
-        date: new Date().toISOString(),
-        status: "PROCESSED",
-    };
-    setTransactionsState((prev) => [newEntry as any, ...prev]);
+            id: id || Math.random().toString(),
+            description,
+            debit: isDebit ? amount : 0,
+            credit: isDebit ? 0 : amount,
+            date: new Date().toISOString(),
+            status: "PROCESSED",
+        };
+
+        setTransactionsState((prev) => [newEntry as any, ...prev]);
+
         const message = `New transaction: ${description} (${isDebit ? 'Debit' : 'Credit'} ${amount})`;
         setNotifications(prev => [message, ...prev]);
+        
         toast({
             title: "New Transaction",
             description: "Transaction saved successfully.",
@@ -68,13 +78,16 @@ export const LedgerProvider = ({ children }: { children: ReactNode }) => {
             const result = await createTransaction(transaction);
 
             if (result && result.success) {
-                recordNewTransaction(transaction.description, transaction.debit || transaction.credit || 0, !!transaction.debit);
+                recordNewTransaction(
+                    transaction.description, 
+                    transaction.debit || transaction.credit || 0, 
+                    !!transaction.debit
+                );
             } else {
                 throw new Error(result?.error || "Unknown error");
             }
         } catch (error) {
             console.error("Failed to save transaction", error);
-            // Rollback or notify error
             toast({
                 title: "Error",
                 description: "Failed to save transaction to database.",
@@ -83,24 +96,31 @@ export const LedgerProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
-    const voidTransaction = async (id: string) => {
-        // Optimistic update logic
-        // We find the transaction to be reversed
+    /**
+     * Voids a transaction.
+     * Adopted from Incoming branch to handle pending AI extractions. [cite: 156, 182-186]
+     */
+    const voidTransaction = async (id: string, isPending: boolean = false) => {
         const originalEntry = transactions.find(t => t.id === id);
         if (!originalEntry) return;
 
         try {
             const { voidTransaction: voidTx } = await import("@/lib/actions/ledger");
-            const result = await voidTx(id);
+            const result = await voidTx(id, isPending);
 
             if (result && result.success) {
                 setNewTransactionCount((prev) => prev + 1);
-                setNotifications(prev => [`Transaction voided: ${id}`, ...prev]);
+                setNotifications(prev => [`Transaction ${isPending ? 'removed' : 'voided'}: ${id}`, ...prev]);
 
                 toast({
-                    title: "Transaction Voided",
-                    description: "Reversal entry created successfully.",
+                    title: isPending ? "Transaction Removed" : "Transaction Voided",
+                    description: isPending ? "Pending item removed." : "Reversal entry created successfully.",
                 });
+
+                // ✅ If it was pending, remove it from state immediately [cite: 186]
+                if (isPending) {
+                    setTransactionsState(prev => prev.filter(t => t.id !== id));
+                }
             } else {
                 throw new Error(result?.error || "Unknown error");
             }
@@ -117,22 +137,11 @@ export const LedgerProvider = ({ children }: { children: ReactNode }) => {
 
     const clearNotifications = () => {
         setNewTransactionCount(0);
-        // We can optionally clear the messages array too, or keep them. 
-        // User said "I need to see the message", implying history. 
-        // Let's keep the history but reset the "new" count.
+        // History is kept in the notifications array per PRD requirements [cite: 192, 193]
     };
 
     const totals = transactions.reduce(
         (acc, curr) => {
-            // Logic update: Reversal entries should naturally offset the original if we sum everything.
-            // Original: Debit 100. Balance -100.
-            // Reversal: Credit 100. Balance -100 + 100 = 0.
-            // So simple summing works perfectly for "Voiding" if we add the reversal entry.
-            // However, we should NOT sum the original entry IF we are just "updating" it? 
-            // BUT, accounting standards say "don't delete". So both exist. 
-            // The original Debit exists. The Reversal Credit exists. They net to 0. 
-            // So we sum ALL transactions.
-
             const debit = curr.debit || 0;
             const credit = curr.credit || 0;
 
