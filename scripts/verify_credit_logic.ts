@@ -1,4 +1,3 @@
-
 import { PrismaClient } from "@prisma/client";
 import { saveScannedDocument } from "../src/lib/actions/documents";
 import { getGovernanceCalendar, setDailyLimit } from "../src/lib/actions/governance";
@@ -46,9 +45,15 @@ async function main() {
     // Check Governance - Spend should be 100
     let gov = await getGovernanceCalendar(date.slice(0, 7), companyId);
     let dayStat = gov.days.find((d: any) => d.date === date);
-    console.log(`   Governance Check (Expect 100): ${dayStat.currentSpending}`);
-    if (dayStat.currentSpending !== 100) console.error("❌ DEBIT Logic Failed: Spend mismatch");
-    else console.log("✅ DEBIT Logic Passed");
+
+    // FIX: Handle potential undefined using optional chaining and nullish coalescing
+    console.log(`   Governance Check (Expect 100): ${dayStat?.currentSpending ?? 'N/A'}`);
+
+    if (!dayStat || dayStat.currentSpending !== 100) {
+        console.error("❌ DEBIT Logic Failed: Spend mismatch or record not found");
+    } else {
+        console.log("✅ DEBIT Logic Passed");
+    }
 
 
     // 3. Test CREDIT (Refund) - Should Decrease Spend
@@ -76,9 +81,15 @@ async function main() {
     // Check Governance - Spend should be 100 - 40 = 60
     gov = await getGovernanceCalendar(date.slice(0, 7), companyId);
     dayStat = gov.days.find((d: any) => d.date === date);
-    console.log(`   Governance Check (Expect 60): ${dayStat.currentSpending}`);
-    if (dayStat.currentSpending !== 60) console.error("❌ CREDIT Logic Failed: Spend mismatch");
-    else console.log("✅ CREDIT Logic Passed");
+
+    // FIX: Handle potential undefined for the second check
+    console.log(`   Governance Check (Expect 60): ${dayStat?.currentSpending ?? 'N/A'}`);
+
+    if (!dayStat || dayStat.currentSpending !== 60) {
+        console.error("❌ CREDIT Logic Failed: Spend mismatch or record not found");
+    } else {
+        console.log("✅ CREDIT Logic Passed");
+    }
 
 
     // 4. Ledger Entry Check
@@ -91,12 +102,12 @@ async function main() {
     });
 
     for (const entry of entries) {
-        const isCredit = entry.description.includes("(CREDIT)") || entry.description.includes("Credit");
-        console.log(`   Entry: ${entry.description}`);
+        const description = entry.description || "";
+        const isCredit = description.includes("(CREDIT)") || description.includes("Credit");
+        console.log(`   Entry: ${description}`);
         entry.ledgerLines.forEach(line => {
             console.log(`      - ${line.account.name} (${line.account.type}): Dr ${line.debit}, Cr ${line.credit}`);
         });
-        // Add assertions here if needed
     }
 
     console.log("\n--- Verification Complete ---");
