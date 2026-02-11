@@ -79,7 +79,6 @@ export async function getLedgerLines(): Promise<LedgerEntry[]> {
             documentUrl: info.document.fileUrl || "",
             reversalOfId: undefined,
             isReversed: false,
-            // ✅ From Incoming: Marks item as pending for the UI [cite: 124]
             isPending: true,
         }
     });
@@ -133,11 +132,9 @@ export async function createTransaction(data: LedgerEntry, companyId: string = "
     }
 }
 
-// ✅ From Incoming: Enhanced void logic to handle Pending items [cite: 134-140]
 export async function voidTransaction(originalId: string, isPending: boolean = false, companyId: string = "clx-onyx-001") {
     try {
         if (isPending) {
-            // 🛡️ For pending items, we delete the extraction and fail the document 
             const extraction = await db.extractedInformation.findUnique({
                 where: { id: originalId },
                 include: { document: true }
@@ -160,7 +157,6 @@ export async function voidTransaction(originalId: string, isPending: boolean = f
             return { success: true };
         }
 
-        // 🏦 For confirmed items, we use the "No-Delete" reversal policy [cite: 141-148, 460]
         const originalLine = await db.ledgerLine.findUnique({
             where: { id: originalId },
             include: {
@@ -184,7 +180,7 @@ export async function voidTransaction(originalId: string, isPending: boolean = f
 
         const reversalLines = originalJournalEntry.ledgerLines.map(line => ({
             accountId: line.accountId,
-            debit: line.credit, // Swap Debit/Credit for Reversal [cite: 145]
+            debit: line.credit,
             credit: line.debit,
             lineDescription: `Reversal of: ${line.lineDescription || ''}`
         }));
@@ -216,11 +212,10 @@ export async function voidTransaction(originalId: string, isPending: boolean = f
     }
 }
 
-// ✅ From Plan: Year-End Closing Logic
-// [cite: Plan Step 4, User Request 3]
+
 export async function closeFiscalYear(companyId: string, closingDate: Date = new Date()) {
     try {
-        // 1. Get Company details for Fiscal Year Start
+        // Get Company details for Fiscal Year Start
         const company = await db.company.findUnique({
             where: { id: companyId },
             select: { fiscalYearStart: true }
@@ -232,8 +227,8 @@ export async function closeFiscalYear(companyId: string, closingDate: Date = new
         // Adjust year if fiscalStart is ahead of closingDate
         fiscalStart.setFullYear(closingDate.getFullYear() - (closingDate < fiscalStart ? 1 : 0));
 
-        // 2. Aggregate Temporary Accounts (Revenue & Expense)
-        // We need the NET balance of each account to zero it out.
+        //Aggregate Temporary Accounts (Revenue & Expense)
+        //need the NET balance of each account to zero it out.
         const tempAccounts = await db.chartOfAccounts.findMany({
             where: {
                 companyId,
@@ -247,8 +242,7 @@ export async function closeFiscalYear(companyId: string, closingDate: Date = new
                                 gte: fiscalStart,
                                 lte: closingDate
                             },
-                            // Exclude previous closing entries to avoid double counting if re-running?
-                            // For now, simpler is better: assume purely transactional sum.
+                            // For now assume purely transactional sum.
                             entryType: { not: "CLOSING" }
                         }
                     }

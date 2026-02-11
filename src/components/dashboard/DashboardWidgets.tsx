@@ -14,7 +14,6 @@ import RadialProgress from "./RadialProgress";
 import { Badge } from "@/components/ui/badge";
 import type { DashboardMetrics } from "@/types/dashboard";
 import { useLedger } from "@/contexts/LedgerContext";
-// ✅ RESOLVED: Keep Link for "View All" navigation
 import Link from "next/link";
 
 function timeAgo(iso: string) {
@@ -42,10 +41,7 @@ const DashboardWidgets = () => {
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  /**
-   * ✅ RESOLVED: Keep Member 5 Polling Logic (5s interval) 
-   * This ensures the $99M volume updates live during scans
-   */
+
   useEffect(() => {
     let alive = true;
 
@@ -140,7 +136,7 @@ const DashboardWidgets = () => {
             <div>
               <p className="text-sm text-muted-foreground">Processed Amount</p>
               <p className="text-2xl font-bold mt-1 text-success">
-                {/* ✅ Keep LKR Label for SL market demo */}
+                {/* Keep LKR Label for SL market demo */}
                 LKR {processedAmount.toLocaleString()}
               </p>
             </div>
@@ -236,7 +232,7 @@ const DashboardWidgets = () => {
         <div className="glass-card rounded-xl p-6">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-semibold">Recent Activity</h3>
-            {/* ✅ RESOLVED: Link to Virtual Ledger page */}
+            {/* Link to Virtual Ledger page */}
             <Link href="/ledger" className="text-sm text-primary hover:underline">
               View All
             </Link>

@@ -5,7 +5,7 @@ import { differenceInDays, isValid } from "date-fns";
 async function verifySmartSuggestions() {
     console.log("--- Verifying Smart Suggestions ---");
 
-    // 1. Get or Create Company
+    // Get or Create Company
     let company = await db.company.findFirst();
     if (!company) {
         console.log("Creating test company...");
@@ -19,7 +19,7 @@ async function verifySmartSuggestions() {
     }
     console.log(`Using Company: ${company.name} (${company.id})`);
 
-    // 2. Setup Test Data (Accounts and Mappings)
+    // Setup Test Data (Accounts and Mappings)
     console.log("Setting up test accounts and mappings...");
 
     // Expense Account
@@ -66,7 +66,7 @@ async function verifySmartSuggestions() {
         });
     }
 
-    // 3. Test Known Vendor
+    //Test Known Vendor
     console.log(`Testing known vendor: ${vendorName}`);
     const result = await matchVendor(vendorName, company.id);
     console.log("Result:", result);
@@ -77,7 +77,7 @@ async function verifySmartSuggestions() {
         console.error("FAILURE: Known vendor match failed.");
     }
 
-    // 4. Test New Vendor (Gemini)
+    // Test New Vendor (Gemini)
     const newVendor = "GitHub Copilot Subscription";
     console.log(`Testing new vendor: ${newVendor}`);
     const aiResult = await matchVendor(newVendor, company.id);
@@ -96,7 +96,7 @@ async function verifySmartSuggestions() {
     } else {
         console.error("FAILURE: New vendor incorrectly identified as existing.");
     }
-    // 5. Test Historical Data (No Mapping, but exists in DB)
+    // Test Historical Data (No Mapping, but exists in DB)
     const historicalVendor = "Historic Supply Co.";
     console.log(`Testing historical vendor: ${historicalVendor}`);
 
@@ -164,8 +164,8 @@ async function verifyReconciliation() {
         return;
     }
 
-    // 1. Create a Ledger Line to "match" against
-    // Ensure we have an account to use
+    // Create a Ledger Line to "match" against
+    // Ensure have an account to use
     let bankAccount = await db.chartOfAccounts.findFirst({ where: { companyId: company.id, type: "ASSET" } });
     if (!bankAccount) {
         bankAccount = await db.chartOfAccounts.create({
@@ -209,7 +209,7 @@ async function verifyReconciliation() {
 
     console.log(`Created Ledger Line: Date=${journal.entryDate}, Amount=${amountVal}, Desc=${ledgerLine.lineDescription}`);
 
-    // 2. Create a "Bank Row" that should match
+    // Create a "Bank Row" that should match
     const bankRow = {
         date: journal.entryDate.toISOString(),
         amount: amountVal, // Exact match 
@@ -218,7 +218,7 @@ async function verifyReconciliation() {
 
     console.log("Created Mock Bank Row:", bankRow);
 
-    // 3. Run Matching Logic (Simulated - same logic as API)
+    // Run Matching Logic (Simulated - same logic as API)
     // Re-fetching to simulate DB read
     const fetchedLine = await db.ledgerLine.findUnique({
         where: { id: ledgerLine.id },
@@ -236,7 +236,7 @@ async function verifyReconciliation() {
     // If Debit > 0 (Money out/asset up?), Amount = -Debit. 
     // If Credit > 0 (Money in/asset down?), Amount = Credit.
 
-    // In our case: Credit=150. So Amount = 150.
+    // In case: Credit=150. So Amount = 150.
     const calculatedLineAmount = fetchedDebit > 0 ? -fetchedDebit : fetchedCredit;
 
     const amountDiff = Math.abs(bankRow.amount - calculatedLineAmount);

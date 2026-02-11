@@ -14,13 +14,12 @@ export async function saveScannedDocument(
   companyId: string,
   fileUrl?: string
 ): Promise<{ success: true; id: string } | { success: false; error: string }> {
-  // 1-15: Basic Validation
+  // Basic Validation
   if (!companyId) return { success: false, error: "Missing companyId" };
 
   try {
     return await prisma.$transaction(async (tx) => {
-      // 1. Date Normalization & Fallback Logic
-      // [cite: Plan Step 1, User Enhancement 1-3]
+      //Date Normalization & Fallback Logi
       let entryDate = new Date(doc.extracted_data.date);
       let isDateFallback = false;
       const now = new Date();
@@ -37,7 +36,7 @@ export async function saveScannedDocument(
       // Normalize to Midnight (Zero-Hour Rule) for Daily Limit Consistency
       entryDate.setHours(0, 0, 0, 0);
 
-      // 2. Daily Limit Check
+      // Daily Limit Check
       const totalAmount = toDecimal(doc.extracted_data.total_amount);
 
       // Check if a specific limit exists for this day
@@ -68,12 +67,12 @@ export async function saveScannedDocument(
         });
       }
 
-      // 3. Prepare Data
+      // Prepare Data
       const isManual = doc.metadata.isManual;
       const sourceType = isManual ? SourceType.USER_INPUT : SourceType.AI_SCAN;
       const finalFileUrl = isManual ? null : fileUrl;
 
-      // 4. Document Extraction Creation
+      // Document Extraction Creation
       const confidenceScores = isManual
         ? {
           date: 1.0,
@@ -110,9 +109,9 @@ export async function saveScannedDocument(
         },
       });
 
-      // 5. Create Balanced Journal Entry
+      // Create Balanced Journal Entry
 
-      // 0) Resolve Account ID if provided [cite: Member 5 Logic]
+      // Resolve Account ID if provided 
       let targetAccountId = null;
       if (doc.intelligence.suggestion_account_id) {
         // Attempt to find account by ID (if it's a UUID) or Code
@@ -130,7 +129,7 @@ export async function saveScannedDocument(
         }
       }
 
-      // --- ROBUST EXPENSE LOOKUP ---
+
       let expenseAccountId = doc.intelligence.suggestion_account_id;
 
       // If no AI suggestion, find default expense
@@ -143,7 +142,7 @@ export async function saveScannedDocument(
           }
         });
 
-        // Fallback 2: Any Expense Account
+        // Any Expense Account
         const anyExpense = defaultExpense || await tx.chartOfAccounts.findFirst({
           where: { companyId, type: "EXPENSE" }
         });
@@ -164,8 +163,7 @@ export async function saveScannedDocument(
         }
       }
 
-      // --- ROBUST LIABILITY LOOKUP (User Request: "Zero-Click Fallback") ---
-      // Tier 1: Preferred Liabilities
+      // Preferred Liabilities
       let liabilityAccount = await tx.chartOfAccounts.findFirst({
         where: {
           companyId,
@@ -174,14 +172,14 @@ export async function saveScannedDocument(
         }
       });
 
-      // Tier 2: Any Liability if Tier 1 fails
+      // Any Liability if Tier 1 fails
       if (!liabilityAccount) {
         liabilityAccount = await tx.chartOfAccounts.findFirst({
           where: { companyId, type: "LIABILITY" }
         });
       }
 
-      // Tier 3: Cash/Bank (Assets) if no Liability found
+      //Cash/Bank (Assets) if no Liability found
       if (!liabilityAccount) {
         liabilityAccount = await tx.chartOfAccounts.findFirst({
           where: {
@@ -195,7 +193,7 @@ export async function saveScannedDocument(
         });
       }
 
-      // Tier 4: Emergency Auto-Provisioning (Zero-Click Fix)
+      // Emergency Auto-Provisioning (Zero-Click Fix)
       if (!liabilityAccount) {
         console.log(`[Auto-Provision] Creating default Liability account for company ${companyId}`);
         liabilityAccount = await tx.chartOfAccounts.create({

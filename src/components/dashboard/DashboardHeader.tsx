@@ -66,7 +66,7 @@ const DashboardHeader = () => {
           />
         </div>
 
-        {/* ✅ Combined: Hydration safety (HEAD) + Notification content (Incoming) [cite: 40, 44, 46, 47] */}
+        {/*  Hydration safety (HEAD) + Notification content (Incoming) */}
         {mounted ? (
           <Popover>
             <PopoverTrigger asChild>
@@ -109,7 +109,6 @@ const DashboardHeader = () => {
             </PopoverContent>
           </Popover>
         ) : (
-          /* 🛡️ Fallback button to prevent hydration mismatch errors  */
           <Button variant="ghost" size="icon" className="relative">
             <Bell className="w-5 h-5" />
           </Button>

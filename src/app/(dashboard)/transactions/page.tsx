@@ -129,7 +129,7 @@ export default function TransactionsPage() {
   const amountBadge = isScanned ? badgeFor(amountScore) : null;
   const wordsBadge = isScanned ? badgeFor(wordsScore) : null;
 
-  // ✅ AI POST HANDLER
+  //AI POST HANDLER
   const handlePost = async () => {
     if (!scannedData) return;
     const activeCompanyId = "clx-onyx-001";
@@ -163,9 +163,9 @@ export default function TransactionsPage() {
     }
   };
 
-  // ✅ MANUAL SAVE HANDLER
+  // MANUAL SAVE HANDLER
   const handleManualSave = async () => {
-    const activeCompanyId = "clx-onyx-001"; // (replace later with auth-based company)
+    const activeCompanyId = "clx-onyx-001"; // (will replace later with auth-based company)
 
     // Validate Valid Date
     let validDate = form.date;
@@ -205,10 +205,10 @@ export default function TransactionsPage() {
     const result = await saveScannedDocument(manualDoc, activeCompanyId);
 
     if (result.success) {
-      alert("Manual transaction saved to database ✅");
+      alert("Manual transaction saved to database ");
       setForm({ payee: "", date: "", amount: "", amountInWords: "", accountId: "" });
     } else {
-      alert("Save failed ❌");
+      alert("Save failed ");
       console.error("Save failed:", result);
     }
   };

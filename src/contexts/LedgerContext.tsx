@@ -10,9 +10,7 @@ interface LedgerContextType {
     notifications: string[];
     addTransaction: (transaction: LedgerEntry) => Promise<void>;
     setTransactions: (transactions: LedgerEntry[]) => void;
-    // ✅ Keep 'id' from HEAD for optimistic UI linking [cite: 154, 164]
     recordNewTransaction: (description: string, amount: number, isDebit: boolean, id?: string) => void;
-    // ✅ Adopt 'isPending' from Incoming for better governance [cite: 156]
     voidTransaction: (id: string, isPending?: boolean) => Promise<void>;
     clearNotifications: () => void;
     totals: {
@@ -42,14 +40,9 @@ export const LedgerProvider = ({ children }: { children: ReactNode }) => {
         setTransactionsState(initialTransactions);
     };
 
-    /**
-     * Records a transaction in the local state and sends a notification.
-     * Keeps the 'id' logic from HEAD to support the Document Vault links. [cite: 163, 164]
-     */
     const recordNewTransaction = (description: string, amount: number, isDebit: boolean, id?: string) => {
         setNewTransactionCount((prev) => prev + 1);
 
-        // Create optimistic entry [cite: 164-167]
         const newEntry = {
             id: id || Math.random().toString(),
             description,
@@ -99,7 +92,7 @@ export const LedgerProvider = ({ children }: { children: ReactNode }) => {
 
     /**
      * Voids a transaction.
-     * Adopted from Incoming branch to handle pending AI extractions. [cite: 156, 182-186]
+     * Adopted from Incoming branch to handle pending AI extractions. 
      */
     const voidTransaction = async (id: string, isPending: boolean = false) => {
         const originalEntry = transactions.find(t => t.id === id);
@@ -118,7 +111,6 @@ export const LedgerProvider = ({ children }: { children: ReactNode }) => {
                     description: isPending ? "Pending item removed." : "Reversal entry created successfully.",
                 });
 
-                // ✅ If it was pending, remove it from state immediately [cite: 186]
                 if (isPending) {
                     setTransactionsState(prev => prev.filter(t => t.id !== id));
                 }
@@ -138,7 +130,7 @@ export const LedgerProvider = ({ children }: { children: ReactNode }) => {
 
     const clearNotifications = () => {
         setNewTransactionCount(0);
-        // History is kept in the notifications array per PRD requirements [cite: 192, 193]
+        // History is kept in the notifications array per PRD requirements
     };
 
     const totals = transactions.reduce(

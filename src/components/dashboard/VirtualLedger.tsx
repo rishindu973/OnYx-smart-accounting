@@ -53,7 +53,7 @@ const VirtualLedger = ({ initialData }: VirtualLedgerProps) => {
     if (value === null) return "—";
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD',
+      currency: 'LKR',
     }).format(value);
   };
 
@@ -282,10 +282,6 @@ const VirtualLedger = ({ initialData }: VirtualLedgerProps) => {
               <Button variant="outline" onClick={() => setVoidingEntry(null)}>Cancel</Button>
               <Button variant="default" onClick={() => {
                 if (voidingEntry) {
-                  // Logic update: The voidingEntry state now needs to hold more than just ID if we want to be safe, 
-                  // OR we find the entry in the list again.
-                  // But wait, the state is just `string | null`. 
-                  // Let's find the entry from the list.
                   const entry = displayTransactions.find(t => t.id === voidingEntry);
                   if (entry) {
                     voidTransaction(voidingEntry, entry.isPending);

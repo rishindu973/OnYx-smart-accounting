@@ -37,16 +37,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    // Placeholder: This is where Member 3 will add the Server Action to check Prisma
+    // Placeholder:where the Server Action to check Prisma
     console.log("Signing in with:", email);
-    
-    // For now, let's simulate a successful login
+
+    // simulate a successful login
     setUser({ id: "1", email, full_name: "Test User" });
     return { error: null };
   };
 
   const signUp = async (email: string, password: string, fullName: string, companyId: string) => {
-    // Placeholder: This is where Member 3 will add the Server Action to create a User in Postgres
+    // Placeholder: add the Server Action to create a User in Postgres
     console.log("Signing up:", fullName);
     return { error: null };
   };
