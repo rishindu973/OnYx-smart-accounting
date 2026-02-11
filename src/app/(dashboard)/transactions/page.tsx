@@ -16,6 +16,7 @@ type ExtractForm = {
 
 export default function TransactionsPage() {
   const [scannedData, setScannedData] = useState<UniversalDocument | null>(null);
+  const [direction, setDirection] = useState<'DEBIT' | 'CREDIT'>('DEBIT');
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   const [form, setForm] = useState<ExtractForm>({
@@ -150,7 +151,7 @@ export default function TransactionsPage() {
       }
     };
 
-    const result = await saveScannedDocument(finalDoc, activeCompanyId);
+    const result = await saveScannedDocument(finalDoc, activeCompanyId, imagePreview || undefined, direction);
     if (result.success) {
       alert("Transaction Posted Successfully! ✅");
       setScannedData(null);
@@ -202,7 +203,7 @@ export default function TransactionsPage() {
       },
     };
 
-    const result = await saveScannedDocument(manualDoc, activeCompanyId);
+    const result = await saveScannedDocument(manualDoc, activeCompanyId, undefined, direction);
 
     if (result.success) {
       alert("Manual transaction saved to database ");
@@ -344,7 +345,29 @@ export default function TransactionsPage() {
             </AnimatePresence>
 
             <div className="space-y-5">
-
+              {/* Direction Toggle */}
+              <div className="flex bg-muted p-1 rounded-lg mb-4">
+                <button
+                  type="button"
+                  onClick={() => setDirection('DEBIT')}
+                  className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-all ${direction === 'DEBIT'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                >
+                  Debit (Expense)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDirection('CREDIT')}
+                  className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-all ${direction === 'CREDIT'
+                    ? 'bg-emerald-500/10 text-emerald-600 shadow-sm border border-emerald-500/20'
+                    : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                >
+                  Credit (Refund/Income)
+                </button>
+              </div>
 
               {/* Payee */}
               <div>
@@ -539,7 +562,7 @@ export default function TransactionsPage() {
                     className="flex-1 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-95 transition shadow-lg shadow-black/30"
                     onClick={handlePost}
                   >
-                    Post Transaction
+                    Post {direction === 'CREDIT' ? 'Credit' : 'Transaction'}
                   </button>
                 </div>
               )}

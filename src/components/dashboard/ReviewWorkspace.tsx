@@ -27,6 +27,7 @@ interface ReviewWorkspaceProps {
 
 const ReviewWorkspace = ({ data: initialData }: ReviewWorkspaceProps) => {
   const [formData, setFormData] = useState(initialData);
+  const [direction, setDirection] = useState<'DEBIT' | 'CREDIT'>('DEBIT');
   const [zoom, setZoom] = useState(100);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
@@ -78,7 +79,7 @@ const ReviewWorkspace = ({ data: initialData }: ReviewWorkspaceProps) => {
 
     // console.log("Final payload to database:", formData.extracted_data);
 
-    const result = await saveScannedDocument(formData, activeCompanyId);
+    const result = await saveScannedDocument(formData, activeCompanyId, imagePreview || undefined, direction);
 
     if (result.success) {
       // Use router for SPA navigation instead of full reload
@@ -233,6 +234,27 @@ const ReviewWorkspace = ({ data: initialData }: ReviewWorkspaceProps) => {
           </AnimatePresence>
 
           <div className="space-y-5">
+            {/* Direction Toggle */}
+            <div className="flex bg-muted p-1 rounded-lg mb-4">
+              <button
+                onClick={() => setDirection('DEBIT')}
+                className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-all ${direction === 'DEBIT'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+                  }`}
+              >
+                Debit (Expense)
+              </button>
+              <button
+                onClick={() => setDirection('CREDIT')}
+                className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-all ${direction === 'CREDIT'
+                  ? 'bg-emerald-500/10 text-emerald-600 shadow-sm border border-emerald-500/20'
+                  : 'text-muted-foreground hover:text-foreground'
+                  }`}
+              >
+                Credit (Refund/Income)
+              </button>
+            </div>
 
             {/*Payee Field */}
             <div className="space-y-2">
@@ -336,9 +358,18 @@ const ReviewWorkspace = ({ data: initialData }: ReviewWorkspaceProps) => {
           </div>
         </div>
 
-        <div className="p-4 border-t border-border flex items-center justify-between bg-card">
-          <Button variant="outline" onClick={() => router.push('/upload')}>Discard</Button>
-          <Button variant="default" onClick={handlePost}>Post Transaction</Button>
+        <div className="p-4 border-t border-border flex flex-col gap-4 bg-card">
+
+          <div className="flex items-center justify-between">
+            <Button variant="outline" onClick={() => router.push('/upload')}>Discard</Button>
+            <Button
+              variant={direction === 'CREDIT' ? 'outline' : 'default'}
+              className={direction === 'CREDIT' ? 'border-emerald-500/50 text-emerald-600 hover:bg-emerald-500/10' : ''}
+              onClick={handlePost}
+            >
+              Post {direction === 'CREDIT' ? 'Credit' : 'Transaction'}
+            </Button>
+          </div>
         </div>
       </div>
     </div>

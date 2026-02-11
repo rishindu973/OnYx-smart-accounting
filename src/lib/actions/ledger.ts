@@ -189,7 +189,9 @@ export async function voidTransaction(originalId: string, isPending: boolean = f
             await tx.journalEntry.create({
                 data: {
                     companyId,
-                    entryDate: new Date(),
+                    // Fix: Reversal should happen on the SAME DAY as the original entry 
+                    // to gracefully "cancel it out" in daily accounting.
+                    entryDate: new Date(originalJournalEntry.entryDate),
                     description: `Reversal of: ${originalJournalEntry.description}`,
                     sourceType: "USER_INPUT",
                     entryType: "REVERSAL",

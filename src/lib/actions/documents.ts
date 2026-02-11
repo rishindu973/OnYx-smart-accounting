@@ -12,7 +12,8 @@ function toDecimal(n: number) {
 export async function saveScannedDocument(
   doc: UniversalDocument,
   companyId: string,
-  fileUrl?: string
+  fileUrl?: string,
+  direction: 'DEBIT' | 'CREDIT' = 'DEBIT'
 ): Promise<{ success: true; id: string } | { success: false; error: string }> {
   // Basic Validation
   if (!companyId) return { success: false, error: "Missing companyId" };
@@ -51,8 +52,19 @@ export async function saveScannedDocument(
 
       if (dailyLimit) {
         // Check if new total exceeds max
-        const newSpend = dailyLimit.currentSpend.add(totalAmount);
-        if (newSpend.greaterThan(dailyLimit.maxAmount)) {
+        // DEBIT increases spend, CREDIT decreases spend
+        let newSpend;
+        if (direction === 'CREDIT') {
+          newSpend = dailyLimit.currentSpend.sub(totalAmount);
+          // Prevent negative spend logic if desired, or allow it. User said "subtract".
+        } else {
+          newSpend = dailyLimit.currentSpend.add(totalAmount);
+        }
+
+        // Prevent negative spend visual
+        if (newSpend.lessThan(0)) newSpend = new Prisma.Decimal(0);
+
+        if (direction === 'DEBIT' && newSpend.greaterThan(dailyLimit.maxAmount)) {
           // Graceful Error Result instead of throw (User Enhancement 4)
           return {
             success: false,
@@ -130,7 +142,10 @@ export async function saveScannedDocument(
       }
 
 
-      let expenseAccountId = doc.intelligence.suggestion_account_id;
+
+      // Fix: If AI suggestion was invalid (targetAccountId is null), we must fall back to default logic.
+      // Previously, we initialized this with the raw suggestion, which bypassed the fallback check.
+      let expenseAccountId = targetAccountId;
 
       // If no AI suggestion, find default expense
       if (!expenseAccountId) {
@@ -206,30 +221,55 @@ export async function saveScannedDocument(
         });
       }
 
+      // Prepare Ledger Lines based on Direction
+      // DEBIT: Dr Expense, Cr Liability
+      // Prepare Ledger Lines based on Direction
+      // DEBIT: Dr Expense, Cr Liability
+      // CREDIT: Dr Liability, Cr Expense
+      const line1 = direction === 'DEBIT'
+        ? {
+          // Expense Side
+          accountId: targetAccountId || expenseAccountId,
+          debit: totalAmount,
+          credit: 0,
+          lineDescription: `Expense: ${doc.extracted_data.payee_name}`
+        }
+        : {
+          // Expense Side (Reversed)
+          accountId: targetAccountId || expenseAccountId,
+          debit: 0,
+          credit: totalAmount,
+          lineDescription: `Refund/Income: ${doc.extracted_data.payee_name}`
+        };
+
+      const line2 = direction === 'DEBIT'
+        ? {
+          // Liability Side
+          accountId: liabilityAccount.id,
+          debit: 0,
+          credit: totalAmount,
+          lineDescription: `Payable: ${doc.extracted_data.payee_name}`
+        }
+        : {
+          // Liability Side (Reversed)
+          accountId: liabilityAccount.id,
+          debit: totalAmount,
+          credit: 0,
+          lineDescription: `Refund Adj: ${doc.extracted_data.payee_name}`
+        };
+
+
       await tx.journalEntry.create({
         data: {
           companyId,
           entryDate: entryDate,
           sourceType,
           description: isManual
-            ? `Manual entry: ${doc.extracted_data.payee_name}`
-            : `AI scan: ${doc.extracted_data.payee_name}`,
+            ? `(CREDIT) Manual: ${doc.extracted_data.payee_name}`
+            : direction === 'CREDIT' ? `(CREDIT) AI scan: ${doc.extracted_data.payee_name}` : `AI scan: ${doc.extracted_data.payee_name}`,
           documentId: createdDocument.id,
           ledgerLines: {
-            create: [
-              {
-                accountId: targetAccountId || expenseAccountId,
-                debit: totalAmount,
-                credit: 0,
-                lineDescription: `Expense: ${doc.extracted_data.payee_name}`
-              },
-              {
-                accountId: liabilityAccount.id,
-                debit: 0,
-                credit: totalAmount,
-                lineDescription: `Payable: ${doc.extracted_data.payee_name}`
-              }
-            ]
+            create: [line1, line2]
           }
         }
       });

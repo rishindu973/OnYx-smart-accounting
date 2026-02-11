@@ -33,14 +33,28 @@ export async function getGovernanceCalendar(month: string, companyId: string) {
     const limitMap = new Map(limits.map(l => [l.date.toISOString().slice(0, 10), Number(l.maxAmount)]));
 
 
+    // Updated Logic: Net Spending = Sum of (Credit - Debit) for Liability/Asset Accounts
+    // This handles:
+    // 1. Regular Expense: Liability Cl credited -> Spending increases
+    // 2. Refund/Credit: Liability Dr debited -> Spending decreases
     const spendingRows = await prisma.$queryRaw<any[]>(Prisma.sql`
-    SELECT je.entry_date::date as date, COALESCE(SUM(ll.credit), 0) as credit_sum
+    SELECT 
+        je.entry_date::date as date, 
+        COALESCE(SUM(
+            CASE 
+                WHEN ca.account_type::text IN ('LIABILITY', 'ASSET') THEN ll.credit - ll.debit 
+                ELSE 0 
+            END
+        ), 0) as net_spend
     FROM "JournalEntry" je
     JOIN "LedgerLine" ll ON ll."journalEntryId" = je.id
-    WHERE je."companyId" = ${companyId} AND je.entry_date >= ${start} AND je.entry_date < ${end}
+    JOIN "ChartOfAccounts" ca ON ll."accountId" = ca.id
+    WHERE je."companyId" = ${companyId} 
+      AND je.entry_date >= ${start} 
+      AND je.entry_date < ${end}
     GROUP BY je.entry_date::date
   `);
-    const spendMap = new Map(spendingRows.map(r => [new Date(r.date).toISOString().slice(0, 10), Number(r.credit_sum)]));
+    const spendMap = new Map(spendingRows.map(r => [new Date(r.date).toISOString().slice(0, 10), Number(r.net_spend)]));
 
     const days = [];
     const cursor = new Date(start);

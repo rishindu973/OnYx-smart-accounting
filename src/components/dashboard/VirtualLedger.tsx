@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import { SourceDocumentModal } from "./SourceDocumentModal";
 import { useLedger } from "@/contexts/LedgerContext";
 import {
   FileText,
@@ -34,7 +35,8 @@ interface VirtualLedgerProps {
 import { LedgerEntry } from "@/types/ledger";
 
 const VirtualLedger = ({ initialData }: VirtualLedgerProps) => {
-  const [selectedDocument, setSelectedDocument] = useState<string | null>(null);
+  const [selectedFileUrl, setSelectedFileUrl] = useState<string | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [voidingEntry, setVoidingEntry] = useState<string | null>(null);
   const { transactions, setTransactions, addTransaction, totals, voidTransaction } = useLedger();
 
@@ -46,8 +48,6 @@ const VirtualLedger = ({ initialData }: VirtualLedgerProps) => {
   }, [initialData, setTransactions]);
 
   const displayTransactions = transactions.length > 0 ? transactions : initialData;
-
-
 
   const formatCurrency = (value: number | null) => {
     if (value === null) return "—";
@@ -63,6 +63,13 @@ const VirtualLedger = ({ initialData }: VirtualLedgerProps) => {
     }
     return "";
   };
+
+  const handleOpenPreview = (url: string | null) => {
+    setSelectedFileUrl(url);
+    setIsPreviewOpen(true);
+  };
+
+
 
   return (
     <div className="p-6 space-y-6">
@@ -168,7 +175,7 @@ const VirtualLedger = ({ initialData }: VirtualLedgerProps) => {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => setSelectedDocument(entry.documentUrl)}
+                      onClick={() => handleOpenPreview(entry.documentUrl || null)}
                       className="h-8 w-8"
                     >
                       <Eye className="w-4 h-4 text-primary" />
@@ -220,41 +227,12 @@ const VirtualLedger = ({ initialData }: VirtualLedgerProps) => {
       </div>
 
       {/* Document Lightbox */}
-      <Dialog open={!!selectedDocument} onOpenChange={() => setSelectedDocument(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FileText className="w-5 h-5 text-primary" />
-              Source Document
-            </DialogTitle>
-          </DialogHeader>
-          <div className="bg-muted rounded-lg p-8 min-h-[400px] flex items-center justify-center relative overflow-hidden">
-            {selectedDocument ? (
-              <div className="w-full h-full flex flex-col items-center">
-                {/* Using a standard img tag for simplicity with external URLs, or you can use Next.js Image if domains are configured */}
-                <img
-                  src={selectedDocument}
-                  alt="Document Evidence"
-                  className="max-w-full max-h-[60vh] object-contain rounded-md shadow-sm"
-                />
-                <div className="mt-4 flex gap-2">
-                  <Button variant="outline" asChild>
-                    <a href={selectedDocument} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
-                      <ExternalLink className="w-4 h-4" />
-                      Open Original
-                    </a>
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="text-center text-muted-foreground">
-                <FileText className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                <p className="font-medium">No document attached</p>
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Document Evidence Modal */}
+      <SourceDocumentModal
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        fileUrl={selectedFileUrl}
+      />
 
       {/* Void Confirmation Dialog */}
       <Dialog open={!!voidingEntry} onOpenChange={() => setVoidingEntry(null)}>
