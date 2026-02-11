@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { LedgerEntry } from "@/types/ledger";
+import { LedgerLine } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 
 export async function getLedgerLines(): Promise<LedgerEntry[]> {
@@ -265,7 +266,7 @@ export async function closeFiscalYear(companyId: string, closingDate: Date = new
 
             let debitSum = 0;
             let creditSum = 0;
-            acc.ledgerLines.forEach(line => {
+            acc.ledgerLines.forEach((line: LedgerLine) => {
                 debitSum += line.debit.toNumber();
                 creditSum += line.credit.toNumber();
             });
