@@ -250,7 +250,7 @@ export async function closeFiscalYear(companyId: string, closingDate: Date = new
                     }
                 }
             }
-        });
+        }) as any;
 
         let totalNetIncome = 0;
         const closingLines: { accountId: string; debit: number; credit: number; lineDescription: string }[] = [];

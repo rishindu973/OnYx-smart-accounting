@@ -20,6 +20,7 @@ import { UniversalDocument } from "@/types/accounting";
 import { motion, AnimatePresence } from "framer-motion";
 import { saveScannedDocument } from "@/lib/actions/documents";
 import { useRouter } from "next/navigation";
+import { processImageForPersistence } from "@/lib/utils/image-processing";
 
 interface ReviewWorkspaceProps {
   data: UniversalDocument;
@@ -79,7 +80,10 @@ const ReviewWorkspace = ({ data: initialData }: ReviewWorkspaceProps) => {
 
     // console.log("Final payload to database:", formData.extracted_data);
 
-    const result = await saveScannedDocument(formData, activeCompanyId, imagePreview || undefined, direction);
+    // Process the image for persistence (converts blob: URL to Base64)
+    const finalImage = await processImageForPersistence(imagePreview);
+
+    const result = await saveScannedDocument(formData, activeCompanyId, finalImage || undefined, direction);
 
     if (result.success) {
       // Use router for SPA navigation instead of full reload

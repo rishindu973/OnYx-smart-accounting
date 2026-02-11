@@ -5,6 +5,7 @@ import { UniversalDocument } from "@/types/accounting";
 import { saveScannedDocument } from "@/lib/actions/documents";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, UserPlus, X } from "lucide-react";
+import { processImageForPersistence } from "@/lib/utils/image-processing";
 
 type ExtractForm = {
   payee: string;
@@ -151,7 +152,9 @@ export default function TransactionsPage() {
       }
     };
 
-    const result = await saveScannedDocument(finalDoc, activeCompanyId, imagePreview || undefined, direction);
+    const finalImage = await processImageForPersistence(imagePreview);
+
+    const result = await saveScannedDocument(finalDoc, activeCompanyId, finalImage, direction);
     if (result.success) {
       alert("Transaction Posted Successfully! ✅");
       setScannedData(null);

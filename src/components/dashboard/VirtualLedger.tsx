@@ -172,14 +172,18 @@ const VirtualLedger = ({ initialData }: VirtualLedgerProps) => {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-center">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleOpenPreview(entry.documentUrl || null)}
-                      className="h-8 w-8"
-                    >
-                      <Eye className="w-4 h-4 text-primary" />
-                    </Button>
+                    {entry.documentUrl ? (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleOpenPreview(entry.documentUrl || null)}
+                        className="h-8 w-8"
+                      >
+                        <Eye className="w-4 h-4 text-primary" />
+                      </Button>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">—</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-center">
                     {!entry.reversalOfId && !entry.isReversed && (
