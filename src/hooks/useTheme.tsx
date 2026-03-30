@@ -11,13 +11,14 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setTheme] = useState<Theme>(() => {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("onyx-theme") as Theme;
-      return stored || "dark";
-    }
-    return "dark";
-  });
+  // const [theme, setTheme] = useState<Theme>(() => {
+  //   if (typeof window !== "undefined") {
+  //     const stored = localStorage.getItem("onyx-theme") as Theme;
+  //     return stored || "dark";
+  //   }
+  //   return "dark";
+  // });
+  const [theme, setTheme] = useState<Theme>("dark");
 
   useEffect(() => {
     const root = document.documentElement;

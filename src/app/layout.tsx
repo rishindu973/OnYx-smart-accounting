@@ -1,6 +1,6 @@
 import { AuthProvider } from "@/contexts/AuthContext";
-import { ThemeProvider } from "@/hooks/useTheme"; // Import the ThemeProvider
-import { LedgerProvider } from "@/contexts/LedgerContext"; // Import LedgerProvider
+import { ThemeProvider } from "@/hooks/useTheme";
+import { LedgerProvider } from "@/contexts/LedgerContext";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";

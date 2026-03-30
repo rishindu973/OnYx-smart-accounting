@@ -5,13 +5,13 @@ import { useDropzone } from "react-dropzone";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { 
-  Upload, 
-  FileText, 
-  Image, 
-  File, 
-  X, 
-  CheckCircle2, 
+import {
+  Upload,
+  FileText,
+  Image,
+  File,
+  X,
+  CheckCircle2,
   Zap,
   AlertCircle
 } from "lucide-react";
@@ -82,41 +82,41 @@ const UploadFiles = () => {
   };
   const [ocrResult, setOcrResult] = useState<any>(null);
   const processFile = async (uploadedFile: UploadedFile) => {
-  setSelectedFileForProcessing(uploadedFile);
-  setShowAIProcessing(true);
-  setAiProgress(0);
+    setSelectedFileForProcessing(uploadedFile);
+    setShowAIProcessing(true);
+    setAiProgress(0);
 
-  try {
-    const formData = new FormData();
-    formData.append("file", uploadedFile.file);
-    const permanentUrl = `https://onyx-vault.storage.com/files/${uploadedFile.id}-${uploadedFile.file.name}`;
+    try {
+      const formData = new FormData();
+      formData.append("file", uploadedFile.file);
+      const permanentUrl = `https://onyx-vault.storage.com/files/${uploadedFile.id}-${uploadedFile.file.name}`;
 
-    // Call verified backend route
-    const response = await fetch("/api/ocr", {
-      method: "POST",
-      body: formData,
-    });
+      // Call verified backend route
+      const response = await fetch("/api/ocr", {
+        method: "POST",
+        body: formData,
+      });
 
-    if (!response.ok) throw new Error("OCR Processing failed");
+      if (!response.ok) throw new Error("OCR Processing failed");
 
-    const result = await response.json();
-    const previewUrl = URL.createObjectURL(uploadedFile.file);
-    setOcrResult(result); // Store the UniversalDocument
-    
-    // Finish the progress bar smoothly
-    setAiProgress(100);
+      const result = await response.json();
+      const previewUrl = URL.createObjectURL(uploadedFile.file);
+      setOcrResult(result); // Store the UniversalDocument
 
-    
-    //Redirect to the transaction review page with the data
-    sessionStorage.setItem("last_scanned_doc", JSON.stringify(result));
-    sessionStorage.setItem("last_scanned_image", previewUrl);
-    sessionStorage.setItem("last_scanned_image_permanent", permanentUrl);
-    setTimeout(() => router.push("/transactions"), 1500);
+      // Finish the progress bar smoothly
+      setAiProgress(100);
 
-  } catch (error) {
-    console.error("Onyx OCR Error:", error);
-    setShowAIProcessing(false);
-    
+
+      //Redirect to the transaction review page with the data
+      sessionStorage.setItem("last_scanned_doc", JSON.stringify(result));
+      sessionStorage.setItem("last_scanned_image", previewUrl);
+      sessionStorage.setItem("last_scanned_image_permanent", permanentUrl);
+      setTimeout(() => router.push("/transactions"), 1500);
+
+    } catch (error) {
+      console.error("Onyx OCR Error:", error);
+      setShowAIProcessing(false);
+
     }
   };
 
@@ -147,11 +147,10 @@ const UploadFiles = () => {
           <CardContent className="p-0">
             <div
               {...getRootProps()}
-              className={`relative p-12 border-2 border-dashed rounded-xl transition-all cursor-pointer ${
-                isDragActive
+              className={`relative p-12 border-2 border-dashed rounded-xl transition-all cursor-pointer ${isDragActive
                   ? "border-primary bg-primary/10"
                   : "border-border hover:border-primary/50 hover:bg-secondary/50"
-              }`}
+                }`}
             >
               <input {...getInputProps()} />
               <div className="text-center">
@@ -255,107 +254,103 @@ const UploadFiles = () => {
         </AnimatePresence>
 
         {/* AI Processing Overlay */}
-<AnimatePresence>
-  {showAIProcessing && (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-background/90 backdrop-blur-xl z-50 flex items-center justify-center"
-    >
-      <motion.div
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        className="bg-card rounded-2xl p-8 max-w-lg w-full mx-4 shadow-2xl border border-border"
-      >
-        <div className="text-center mb-6">
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-            className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/20 flex items-center justify-center"
-          >
-            <Zap className="w-8 h-8 text-primary" />
-          </motion.div>
-          <h3 className="text-xl font-bold mb-2">Onyx AI Processing</h3>
-          <p className="text-muted-foreground text-sm truncate">
-            {selectedFileForProcessing?.file.name}
-          </p>
-        </div>
-
-        <div className="space-y-6">
-          <Progress value={aiProgress} className="h-3" />
-
-          {/* Dynamic Confidence Heatmap */}
-          <div className="grid grid-cols-2 gap-2 text-xs">
+        <AnimatePresence>
+          {showAIProcessing && (
             <motion.div
-              className={`p-3 rounded-lg border ${
-                ocrResult?.intelligence.confidence_score.payee_name >= 0.95 || 
-                (ocrResult?.intelligence.confidence_score.payee_name === 0 && ocrResult?.extracted_data.payee_name !== "Review Required")
-                  ? "bg-success/20 border-success/30" 
-                  : "bg-warning/20 border-warning/30"
-              }`}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-background/90 backdrop-blur-xl z-50 flex items-center justify-center"
             >
-              <div className="font-medium text-success">Payee Name</div>
-              <div className="text-muted-foreground">
-                {ocrResult ? `${(ocrResult.intelligence.confidence_score.payee_name * 100).toFixed(0)}%` : "Scanning..."}
-              </div>
-            </motion.div>
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="bg-card rounded-2xl p-8 max-w-lg w-full mx-4 shadow-2xl border border-border"
+              >
+                <div className="text-center mb-6">
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                    className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/20 flex items-center justify-center"
+                  >
+                    <Zap className="w-8 h-8 text-primary" />
+                  </motion.div>
+                  <h3 className="text-xl font-bold mb-2">Onyx AI Processing</h3>
+                  <p className="text-muted-foreground text-sm truncate">
+                    {selectedFileForProcessing?.file.name}
+                  </p>
+                </div>
 
-            <motion.div
-              className={`p-3 rounded-lg border ${
-                ocrResult?.intelligence.confidence_score.amount_numeric >= 0.95 
-                  ? "bg-success/20 border-success/30" 
-                  : "bg-destructive/20 border-destructive/30"
-              }`}
-            >
-              <div className="font-medium text-success">Amount</div>
-              <div className="text-muted-foreground">
-                {ocrResult ? `${(ocrResult.intelligence.confidence_score.amount_numeric * 100).toFixed(0)}%` : "Validating..."}
-              </div>
-            </motion.div>
+                <div className="space-y-6">
+                  <Progress value={aiProgress} className="h-3" />
 
-            <motion.div
-              className={`p-3 rounded-lg border ${
-                ocrResult?.intelligence.confidence_score.date >= 0.95 
-                  ? "bg-success/20 border-success/30" 
-                  : "bg-warning/20 border-warning/30"
-              }`}
-            >
-              <div className="font-medium text-success">Date</div>
-              <div className="text-muted-foreground">
-                {ocrResult ? `${(ocrResult.intelligence.confidence_score.date * 100).toFixed(0)}%` : "Parsing..."}
-              </div>
-            </motion.div>
+                  {/* Dynamic Confidence Heatmap */}
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <motion.div
+                      className={`p-3 rounded-lg border ${(ocrResult?.intelligence?.confidence_scores?.payee_name ?? 0) >= 0.95 ||
+                          ((ocrResult?.intelligence?.confidence_scores?.payee_name ?? 0) === 0 && ocrResult?.extracted_data.payee_name !== "Review Required")
+                          ? "bg-success/20 border-success/30"
+                          : "bg-warning/20 border-warning/30"
+                        }`}
+                    >
+                      <div className="font-medium text-success">Payee Name</div>
+                      <div className="text-muted-foreground">
+                        {ocrResult ? `${((ocrResult.intelligence?.confidence_scores?.payee_name ?? 0) * 100).toFixed(0)}%` : "Scanning..."}
+                      </div>
+                    </motion.div>
 
-            <motion.div
-              className={`p-3 rounded-lg border ${
-                ocrResult?.intelligence.amount_validation_passed 
-                  ? "bg-success/20 border-success/30" 
-                  : "bg-destructive/20 border-destructive/30"
-              }`}
-            >
-              <div className="font-medium text-success">Logic Check</div>
-              <div className="text-muted-foreground font-bold">
-                {ocrResult ? (ocrResult.intelligence.amount_validation_passed ? "VERIFIED" : "MISMATCH") : "Checking..."}
-              </div>
-            </motion.div>
-          </div>
+                    <motion.div
+                      className={`p-3 rounded-lg border ${(ocrResult?.intelligence?.confidence_scores?.amount_numeric ?? 0) >= 0.95
+                          ? "bg-success/20 border-success/30"
+                          : "bg-destructive/20 border-destructive/30"
+                        }`}
+                    >
+                      <div className="font-medium text-success">Amount</div>
+                      <div className="text-muted-foreground">
+                        {ocrResult ? `${((ocrResult.intelligence?.confidence_scores?.amount_numeric ?? 0) * 100).toFixed(0)}%` : "Validating..."}
+                      </div>
+                    </motion.div>
 
-          {aiProgress >= 100 && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex items-center justify-center gap-2 text-success font-medium"
-            >
-              <CheckCircle2 className="w-5 h-5" />
-              Processing complete! Redirecting...
+                    <motion.div
+                      className={`p-3 rounded-lg border ${(ocrResult?.intelligence?.confidence_scores?.date ?? 0) >= 0.95
+                          ? "bg-success/20 border-success/30"
+                          : "bg-warning/20 border-warning/30"
+                        }`}
+                    >
+                      <div className="font-medium text-success">Date</div>
+                      <div className="text-muted-foreground">
+                        {ocrResult ? `${((ocrResult.intelligence?.confidence_scores?.date ?? 0) * 100).toFixed(0)}%` : "Parsing..."}
+                      </div>
+                    </motion.div>
+
+                    <motion.div
+                      className={`p-3 rounded-lg border ${ocrResult?.intelligence.amount_validation_passed
+                          ? "bg-success/20 border-success/30"
+                          : "bg-destructive/20 border-destructive/30"
+                        }`}
+                    >
+                      <div className="font-medium text-success">Logic Check</div>
+                      <div className="text-muted-foreground font-bold">
+                        {ocrResult ? (ocrResult.intelligence.amount_validation_passed ? "VERIFIED" : "MISMATCH") : "Checking..."}
+                      </div>
+                    </motion.div>
+                  </div>
+
+                  {aiProgress >= 100 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex items-center justify-center gap-2 text-success font-medium"
+                    >
+                      <CheckCircle2 className="w-5 h-5" />
+                      Processing complete! Redirecting...
+                    </motion.div>
+                  )}
+                </div>
+              </motion.div>
             </motion.div>
           )}
-        </div>
-      </motion.div>
-    </motion.div>
-  )}
-</AnimatePresence>
+        </AnimatePresence>
       </motion.div>
     </div>
   );

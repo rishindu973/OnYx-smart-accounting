@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import { SourceDocumentModal } from "./SourceDocumentModal";
 import { useLedger } from "@/contexts/LedgerContext";
 import {
   FileText,
@@ -34,41 +35,25 @@ interface VirtualLedgerProps {
 import { LedgerEntry } from "@/types/ledger";
 
 const VirtualLedger = ({ initialData }: VirtualLedgerProps) => {
-  const [selectedDocument, setSelectedDocument] = useState<string | null>(null);
+  const [selectedFileUrl, setSelectedFileUrl] = useState<string | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [voidingEntry, setVoidingEntry] = useState<string | null>(null);
   const { transactions, setTransactions, addTransaction, totals, voidTransaction } = useLedger();
 
   // Initialize context with initialData
   useEffect(() => {
-    if (initialData && initialData.length > 0 && transactions.length === 0) {
+    if (initialData) {
       setTransactions(initialData);
     }
-  }, [initialData, setTransactions, transactions.length]);
+  }, [initialData, setTransactions]);
 
   const displayTransactions = transactions.length > 0 ? transactions : initialData;
-
-  const handleSimulateTransaction = () => {
-    const newTransaction: LedgerEntry = {
-      id: `sim-${Date.now()}`,
-      date: new Date().toISOString().split('T')[0],
-      description: "Simulated Transaction",
-      account: "Check Account",
-      accountCode: "1000",
-      debit: 500,
-      credit: null,
-      source: "USER_INPUT",
-      documentUrl: "",
-      reversalOfId: undefined,
-      isReversed: false
-    };
-    addTransaction(newTransaction);
-  };
 
   const formatCurrency = (value: number | null) => {
     if (value === null) return "—";
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD',
+      currency: 'LKR',
     }).format(value);
   };
 
@@ -78,6 +63,13 @@ const VirtualLedger = ({ initialData }: VirtualLedgerProps) => {
     }
     return "";
   };
+
+  const handleOpenPreview = (url: string | null) => {
+    setSelectedFileUrl(url);
+    setIsPreviewOpen(true);
+  };
+
+
 
   return (
     <div className="p-6 space-y-6">
@@ -90,9 +82,7 @@ const VirtualLedger = ({ initialData }: VirtualLedgerProps) => {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button onClick={handleSimulateTransaction}>
-            Simulate Transaction
-          </Button>
+
           <Button variant="outline" className="gap-2">
             <Filter className="w-4 h-4" />
             Filter
@@ -182,14 +172,18 @@ const VirtualLedger = ({ initialData }: VirtualLedgerProps) => {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-center">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setSelectedDocument(entry.documentUrl)}
-                      className="h-8 w-8"
-                    >
-                      <Eye className="w-4 h-4 text-primary" />
-                    </Button>
+                    {entry.documentUrl ? (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleOpenPreview(entry.documentUrl || null)}
+                        className="h-8 w-8"
+                      >
+                        <Eye className="w-4 h-4 text-primary" />
+                      </Button>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">—</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-center">
                     {!entry.reversalOfId && !entry.isReversed && (
@@ -237,27 +231,12 @@ const VirtualLedger = ({ initialData }: VirtualLedgerProps) => {
       </div>
 
       {/* Document Lightbox */}
-      <Dialog open={!!selectedDocument} onOpenChange={() => setSelectedDocument(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FileText className="w-5 h-5 text-primary" />
-              Source Document
-            </DialogTitle>
-          </DialogHeader>
-          <div className="bg-muted rounded-lg p-8 min-h-[400px] flex items-center justify-center">
-            <div className="text-center text-muted-foreground">
-              <FileText className="w-16 h-16 mx-auto mb-4 opacity-50" />
-              <p className="font-medium">Document Preview</p>
-              <p className="text-sm">{selectedDocument}</p>
-              <Button variant="outline" className="mt-4 gap-2">
-                <ExternalLink className="w-4 h-4" />
-                Open Original
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Document Evidence Modal */}
+      <SourceDocumentModal
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        fileUrl={selectedFileUrl}
+      />
 
       {/* Void Confirmation Dialog */}
       <Dialog open={!!voidingEntry} onOpenChange={() => setVoidingEntry(null)}>
@@ -275,18 +254,24 @@ const VirtualLedger = ({ initialData }: VirtualLedgerProps) => {
             </p>
             <div className="p-4 rounded-lg bg-warning/10 border border-warning/20">
               <p className="text-sm text-warning font-medium">
-                The original entry will be marked as reversed, and a new reversing entry will be created.
+                {displayTransactions.find(t => t.id === voidingEntry)?.isPending
+                  ? "This will remove the pending extraction. The source document will be marked as FAILED."
+                  : "The original entry will be marked as reversed, and a new reversing entry will be created."
+                }
               </p>
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setVoidingEntry(null)}>Cancel</Button>
               <Button variant="default" onClick={() => {
                 if (voidingEntry) {
-                  voidTransaction(voidingEntry);
+                  const entry = displayTransactions.find(t => t.id === voidingEntry);
+                  if (entry) {
+                    voidTransaction(voidingEntry, entry.isPending);
+                  }
                   setVoidingEntry(null);
                 }
               }}>
-                Create Reversal
+                {displayTransactions.find(t => t.id === voidingEntry)?.isPending ? "Remove Entry" : "Create Reversal"}
               </Button>
             </div>
           </div>
