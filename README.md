@@ -47,10 +47,20 @@ src/
 
 ## 📊 Core Modules
 
-* **Dashboard:** Financial insights, KPIs, and analytics
-* **Transaction Management:** Record, classify, and manage financial entries
-* **Audit Trail System:** Ensures full traceability of all financial operations
-* **AI Engine:** Smart recommendations and automation
+* **AI Powered Document Processing**
+  Upload receipts, invoices, or bills with instant data extraction and confidence scoring
+
+* **Real Time Spending Controls**
+  Enforce daily spending limits through a governance calendar
+
+* **Audit Ready System**
+  Permanent transaction logging with secure reversal-based corrections
+
+* **Intelligent Review Interface**
+  Side-by-side document validation with smart vendor detection and anomaly flags
+
+* **Automated Bank Reconciliation**
+  Automatic matching of ledgers and bank statements with discrepancy detection
 
 ---
 
