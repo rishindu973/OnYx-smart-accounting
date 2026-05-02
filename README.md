@@ -1,7 +1,5 @@
 # 🧾 OnYx: Smart Accounting & Governance
 
-**Project Status:** Frontend Integration & Infrastructure Complete (Phase 2)
-
 OnYx is an AI-driven financial governance platform designed to streamline accounting workflows, enforce auditability, and deliver intelligent financial insights. It combines a modern full-stack architecture with scalable backend systems and a rich, interactive frontend.
 
 ---
